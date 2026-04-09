@@ -195,6 +195,7 @@ def get_history():
                     "marca_modelo_año": safe_get(row, COL_VEHICULO),
                     "my_status":        my_status,
                     "my_resp":          my_resp,
+                    "foto":             safe_get(row, COL_FOTO),
                     "link":             safe_get(row, COL_LINK),
                     "other_user":       cfg['other_name'],
                     "other_status":     safe_get(row, osc),

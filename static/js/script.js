@@ -594,6 +594,9 @@ function renderHistoryCard(item, idx) {
     const linkBtn = item.link && !isEditing
         ? `<a href="${item.link}" target="_blank" class="link-pill"><i class="fas fa-link"></i> Ver link</a>` : '';
 
+    const fotoBtn = isValidFotoUrl(item.foto) && !isEditing
+        ? `<a href="${item.foto}" target="_blank" class="foto-preview-btn"><i class="fas fa-image"></i> Ver foto</a>` : '';
+
     return `
     <div class="history-card" id="hcard-${idx}">
         <div class="card-header" style="margin-bottom:0.75rem;">
@@ -613,6 +616,7 @@ function renderHistoryCard(item, idx) {
             <span class="status-pill ${statusClass}">${item.my_status}</span>
             ${item.my_resp ? `<span class="history-resp-text">${item.my_resp}</span>` : ''}
             ${linkBtn}
+            ${fotoBtn}
         </div>
 
         ${otherBlock}
