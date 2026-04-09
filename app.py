@@ -34,6 +34,7 @@ COL_ROBINSON_RESP   = 14  # N
 
 # Shared
 COL_LINK = 15  # O
+COL_FOTO = 9   # I
 
 USER_CONFIG = {
     'ignacio': {
@@ -73,7 +74,8 @@ def safe_get(row, col_1indexed):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    imgbb_key = os.environ.get('IMGBB_API_KEY', '')
+    return render_template('index.html', imgbb_key=imgbb_key)
 
 @app.route('/api/pending', methods=['GET'])
 def get_pending():
@@ -130,6 +132,7 @@ def get_pending():
                     "caracteristicas":safe_get(row, COL_CARACT),
                     "lado":           safe_get(row, COL_LADO),
                     "marca_modelo_año": vehiculo,
+                    "foto":           safe_get(row, COL_FOTO),
                     "link":           safe_get(row, COL_LINK),
                     "other_user":     cfg['other_name'],
                     "other_status":   other_status,
@@ -205,6 +208,68 @@ def get_history():
     except Exception as e:
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/consultations', methods=['GET'])
+def search_consultations():
+    try:
+        q = request.args.get('q', '').strip().lower()
+        if len(q) < 2:
+            return jsonify([])
+
+        client = get_gspread_client()
+        sheet  = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+        all_rows = sheet.get_all_values()
+
+        results = []
+        for idx, row in enumerate(all_rows[1:], start=2):
+            padded = row + [''] * 20
+            folio    = safe_get(padded, COL_FOLIO)
+            producto = safe_get(padded, COL_PRODUCTO)
+            vehiculo = safe_get(padded, COL_VEHICULO)
+            ejecutivo= safe_get(padded, COL_EJECUTIVO)
+
+            if not (q in folio.lower() or q in producto.lower()
+                    or q in vehiculo.lower() or q in ejecutivo.lower()):
+                continue
+
+            results.append({
+                'row_index':       idx,
+                'folio':           folio,
+                'fecha':           safe_get(padded, COL_FECHA),
+                'ejecutivo':       ejecutivo,
+                'producto':        producto,
+                'caracteristicas': safe_get(padded, COL_CARACT),
+                'lado':            safe_get(padded, COL_LADO),
+                'marca_modelo_año': vehiculo,
+                'foto':            safe_get(padded, COL_FOTO),
+                'la_reina':        safe_get(padded, COL_IGNACIO_STATUS),
+                'externo':         safe_get(padded, COL_ROBINSON_STATUS),
+            })
+            if len(results) >= 20:
+                break
+
+        return jsonify(results)
+    except Exception as e:
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/update-foto', methods=['POST'])
+def update_foto():
+    try:
+        data    = request.json
+        row_idx = data.get('row_index')
+        url     = data.get('foto_url', '')
+
+        client = get_gspread_client()
+        sheet  = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+        sheet.update_cell(row_idx, COL_FOTO, url)
+
+        return jsonify({'success': True})
+    except Exception as e:
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/update', methods=['POST'])

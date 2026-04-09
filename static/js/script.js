@@ -17,8 +17,9 @@ const headerSubtitle   = document.getElementById('header-subtitle');
 
 // ---- User Config ----
 const USER_DISPLAY = {
-    ignacio:  { label: 'Ignacio',  role: 'La Reina',          color: 'ignacio' },
-    robinson: { label: 'Robinson', role: 'Respuestas Externas', color: 'robinson' },
+    ignacio:    { label: 'Ignacio',     role: 'La Reina',           color: 'ignacio' },
+    robinson:   { label: 'Robinson',    role: 'Respuestas Externas', color: 'robinson' },
+    callcenter: { label: 'Call Center', role: 'Subir Fotos',         color: 'callcenter' },
 };
 
 // ---- Quick Status Buttons (K / M) ----
@@ -56,17 +57,24 @@ if (SpeechRecognition) {
 window.selectUser = function(user) {
     currentUser = user;
     localStorage.setItem('stockvoice_user', user);
-    showMainApp();
-    fetchConsultations().then(() => {
-        lastKnownCount = consultations.length;
-        requestNotificationPermission();
-        startPolling();
-    });
+    if (user === 'callcenter') {
+        showCCScreen();
+    } else {
+        showMainApp();
+        fetchConsultations().then(() => {
+            lastKnownCount = consultations.length;
+            requestNotificationPermission();
+            startPolling();
+        });
+    }
 };
 
 window.changeUser = function() {
     currentUser = null;
-    mainApp.style.display = 'none';
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+    document.getElementById('main-app').style.display      = 'none';
+    document.getElementById('history-screen').style.display = 'none';
+    document.getElementById('cc-screen').style.display      = 'none';
     userSelectScreen.style.display = 'flex';
 };
 
@@ -186,6 +194,11 @@ function renderCards() {
                     <span class="detail-value">${item.caracteristicas || '—'}</span>
                 </div>
             </div>
+
+            ${item.foto ? `
+            <a href="${item.foto}" target="_blank" class="foto-preview-btn">
+                <i class="fas fa-image"></i> Ver foto adjunta
+            </a>` : ''}
 
             ${otherBlock}
             ${dupBlock}
@@ -315,6 +328,144 @@ window.submitResponse = async function(idx) {
         submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar Respuesta';
     }
 };
+
+// =============================================
+// CALL CENTER SCREEN
+// =============================================
+const ccScreen  = document.getElementById('cc-screen');
+const ccResults = document.getElementById('cc-results');
+
+let ccSearchTimer = null;
+let currentFotoRowIndex = null;
+
+function showCCScreen() {
+    userSelectScreen.style.display  = 'none';
+    mainApp.style.display           = 'none';
+    document.getElementById('history-screen').style.display = 'none';
+    ccScreen.style.display          = 'block';
+    document.getElementById('cc-search').value = '';
+    ccResults.innerHTML = `<p style="text-align:center;color:var(--text-muted);padding:2rem;font-size:0.9rem;">
+        Escribe al menos 2 caracteres para buscar</p>`;
+}
+
+window.debouncedSearch = function(val) {
+    clearTimeout(ccSearchTimer);
+    if (val.length < 2) {
+        ccResults.innerHTML = `<p style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.9rem;">
+            Escribe al menos 2 caracteres</p>`;
+        return;
+    }
+    ccSearchTimer = setTimeout(() => searchConsultations(val), 500);
+};
+
+async function searchConsultations(q) {
+    ccResults.innerHTML = `<div style="text-align:center;padding:1.5rem;">
+        <div class="loader" style="display:inline-block;"></div></div>`;
+    try {
+        const res  = await fetch(`/api/consultations?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderCCResults(data);
+    } catch(err) {
+        ccResults.innerHTML = `<p style="color:var(--danger);text-align:center;padding:1rem;">Error: ${err.message}</p>`;
+    }
+}
+
+function renderCCResults(items) {
+    if (items.length === 0) {
+        ccResults.innerHTML = `<div class="empty-state"><i class="fas fa-search"></i>
+            <h2>Sin resultados</h2><p>Intenta con otro término.</p></div>`;
+        return;
+    }
+    ccResults.innerHTML = items.map((item, idx) => `
+        <div class="cc-card" id="cc-card-${idx}">
+            <div class="card-header" style="margin-bottom:0.6rem;">
+                <div style="display:flex;flex-direction:column;gap:3px;">
+                    <span class="badge">Folio ${item.folio || 'S/N'}</span>
+                    ${item.fecha ? `<span class="fecha-badge"><i class="fas fa-calendar-alt"></i> ${item.fecha}</span>` : ''}
+                </div>
+                <span class="ejecutivo-badge"><i class="fas fa-headset" style="margin-right:4px;"></i>${item.ejecutivo || '—'}</span>
+            </div>
+            <div style="font-weight:700;font-size:0.95rem;margin-bottom:3px;">${item.producto}</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;">
+                ${item.marca_modelo_año || ''} ${item.lado ? '· ' + item.lado : ''}
+            </div>
+            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+                ${item.la_reina ? `<span class="status-pill status--blue">${item.la_reina}</span>` : ''}
+                ${item.externo  ? `<span class="status-pill status--green">${item.externo}</span>` : ''}
+            </div>
+            ${item.foto ? `
+                <a href="${item.foto}" target="_blank" class="foto-preview-btn" style="margin-bottom:0.75rem;display:inline-flex;">
+                    <i class="fas fa-image"></i> Ver foto actual
+                </a>` : ''}
+            <button class="cc-upload-btn" onclick="triggerFotoUpload(${item.row_index}, ${idx})">
+                <i class="fas fa-camera"></i>
+                ${item.foto ? 'Reemplazar foto' : 'Subir foto'}
+            </button>
+            <div id="cc-status-${idx}" class="cc-upload-status"></div>
+        </div>
+    `).join('');
+}
+
+window.triggerFotoUpload = function(rowIndex, cardIdx) {
+    currentFotoRowIndex = rowIndex;
+    window._currentCCCardIdx = cardIdx;
+    document.getElementById('foto-input').click();
+};
+
+window.handleFotoSelected = async function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    event.target.value = '';
+
+    const cardIdx = window._currentCCCardIdx;
+    const statusDiv = document.getElementById(`cc-status-${cardIdx}`);
+    const btn = document.querySelector(`#cc-card-${cardIdx} .cc-upload-btn`);
+
+    statusDiv.innerHTML = '<div class="loader" style="display:inline-block;width:18px;height:18px;border-width:2px;margin-right:6px;"></div> Subiendo foto...';
+    if (btn) { btn.disabled = true; }
+
+    try {
+        // Convert to base64
+        const base64 = await fileToBase64(file);
+
+        // Upload to imgbb
+        const formData = new FormData();
+        formData.append('key', window.IMGBB_KEY);
+        formData.append('image', base64.split(',')[1]);
+
+        const imgRes  = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+        const imgData = await imgRes.json();
+
+        if (!imgData.success) throw new Error('Error al subir la foto a imgbb');
+
+        const fotoUrl = imgData.data.url;
+
+        // Save URL to sheet
+        const saveRes  = await fetch('/api/update-foto', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ row_index: currentFotoRowIndex, foto_url: fotoUrl }),
+        });
+        const saveData = await saveRes.json();
+        if (!saveData.success) throw new Error(saveData.error);
+
+        statusDiv.innerHTML = `✅ Foto subida. <a href="${fotoUrl}" target="_blank" style="color:var(--callcenter);">Ver foto</a>`;
+        if (btn) { btn.innerHTML = '<i class="fas fa-camera"></i> Reemplazar foto'; btn.disabled = false; }
+    } catch(err) {
+        statusDiv.innerHTML = `<span style="color:var(--danger);">❌ ${err.message}</span>`;
+        if (btn) { btn.disabled = false; }
+    }
+};
+
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
 
 // =============================================
 // HISTORY

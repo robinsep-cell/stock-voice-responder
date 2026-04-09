@@ -9,6 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- imgbb API key exposed safely from backend -->
+    <script>window.IMGBB_KEY = "{{ imgbb_key }}";</script>
 </head>
 <body>
 
@@ -19,23 +21,34 @@
                 <i class="fas fa-boxes-stacked"></i>
             </div>
             <h1>Stock Voice</h1>
-            <p class="user-select-subtitle">¿Quién responde hoy?</p>
+            <p class="user-select-subtitle">¿Quién accede?</p>
             <div class="user-cards">
                 <button class="user-card user-card--ignacio" id="btn-ignacio" onclick="selectUser('ignacio')">
                     <div class="user-card-icon"><i class="fas fa-user-tie"></i></div>
-                    <div class="user-card-name">Ignacio Castañeda</div>
-                    <div class="user-card-role">La Reina</div>
+                    <div>
+                        <div class="user-card-name">Ignacio Castañeda</div>
+                        <div class="user-card-role">La Reina — Responder consultas</div>
+                    </div>
                 </button>
                 <button class="user-card user-card--robinson" id="btn-robinson" onclick="selectUser('robinson')">
                     <div class="user-card-icon"><i class="fas fa-user"></i></div>
-                    <div class="user-card-name">Robinson</div>
-                    <div class="user-card-role">Respuestas Externas</div>
+                    <div>
+                        <div class="user-card-name">Robinson</div>
+                        <div class="user-card-role">Externo — Responder consultas</div>
+                    </div>
+                </button>
+                <button class="user-card user-card--callcenter" id="btn-callcenter" onclick="selectUser('callcenter')">
+                    <div class="user-card-icon"><i class="fas fa-headset"></i></div>
+                    <div>
+                        <div class="user-card-name">Call Center</div>
+                        <div class="user-card-role">Subir fotos a consultas</div>
+                    </div>
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- ===== MAIN APP ===== -->
+    <!-- ===== MAIN APP (Robinson / Ignacio) ===== -->
     <div id="main-app" style="display:none;">
         <header>
             <div class="header-top">
@@ -83,14 +96,37 @@
             </div>
             <p class="subtitle" id="history-subtitle">Cargando...</p>
         </header>
+        <div class="container" id="history-container"></div>
+    </div>
 
-        <div class="container" id="history-container">
-            <div style="text-align: center; padding: 2rem;" id="history-loader">
-                <div class="loader" style="display: inline-block;"></div>
-                <p style="margin-top: 1rem; color: var(--text-muted);">Cargando historial...</p>
+    <!-- ===== CALL CENTER SCREEN ===== -->
+    <div id="cc-screen" style="display:none;">
+        <header>
+            <div class="header-top">
+                <button class="back-btn" onclick="changeUser()">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+                <span class="history-title" style="color:var(--callcenter);">
+                    <i class="fas fa-headset" style="margin-right:5px;"></i>Call Center
+                </span>
+                <div style="width:80px;"></div>
             </div>
+            <p class="subtitle">Busca una consulta y sube la foto</p>
+        </header>
+
+        <div class="container">
+            <div class="search-bar" style="margin-bottom:1rem;">
+                <i class="fas fa-search"></i>
+                <input type="text" id="cc-search"
+                    placeholder="Buscar por folio, producto, vehículo..."
+                    oninput="debouncedSearch(this.value)" />
+            </div>
+            <div id="cc-results"></div>
         </div>
     </div>
+
+    <!-- hidden file input for photo upload -->
+    <input type="file" id="foto-input" accept="image/*" capture="environment" style="display:none;" onchange="handleFotoSelected(event)" />
 
     <script src="/static/js/script.js"></script>
 </body>
