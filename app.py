@@ -1,5 +1,6 @@
 import os
 import json
+import traceback
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 import gspread
@@ -11,31 +12,64 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# Google Sheets Configuration
 SHEET_ID = '1J3t28M_0oZuVjkZ8GxNrD08kiGqd-A08I23jAiv8dPU'
 SHEET_NAME = 'Base'
 
-# Mapping Columns (1-indexed for gspread, 0-indexed for list access)
-COL_FOLIO = 2      # B
+# Column indices (1-indexed for gspread, 0-indexed for list access)
+COL_FOLIO    = 2   # B
+COL_FECHA    = 3   # C
+COL_EJECUTIVO= 4   # D
 COL_PRODUCTO = 5   # E
-COL_CARACT = 6     # F
-COL_LADO = 7       # G
+COL_CARACT   = 6   # F
+COL_LADO     = 7   # G
 COL_VEHICULO = 8   # H
-COL_LA_REINA_STATUS = 10  # J
-COL_LA_REINA_RESP = 11    # K
+
+# Ignacio — La Reina
+COL_IGNACIO_STATUS = 11  # K
+COL_IGNACIO_RESP   = 12  # L
+
+# Robinson — Externo
+COL_ROBINSON_STATUS = 13  # M
+COL_ROBINSON_RESP   = 14  # N
+
+# Shared
+COL_LINK = 15  # O
+
+USER_CONFIG = {
+    'ignacio': {
+        'display_name': 'Ignacio Castañeda',
+        'status_col':      COL_IGNACIO_STATUS,
+        'resp_col':        COL_IGNACIO_RESP,
+        'other_name':      'Robinson',
+        'other_status_col': COL_ROBINSON_STATUS,
+        'other_resp_col':   COL_ROBINSON_RESP,
+    },
+    'robinson': {
+        'display_name': 'Robinson',
+        'status_col':      COL_ROBINSON_STATUS,
+        'resp_col':        COL_ROBINSON_RESP,
+        'other_name':      'Ignacio',
+        'other_status_col': COL_IGNACIO_STATUS,
+        'other_resp_col':   COL_IGNACIO_RESP,
+    },
+}
 
 def get_gspread_client():
     scopes = ['https://www.googleapis.com/auth/spreadsheets']
-    # If credentials.json exists, use it. Otherwise, look for env var.
     if os.path.exists('credentials.json'):
         creds = Credentials.from_service_account_file('credentials.json', scopes=scopes)
     elif os.environ.get('GOOGLE_CREDENTIALS_JSON'):
         creds_dict = json.loads(os.environ.get('GOOGLE_CREDENTIALS_JSON'))
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     else:
-        raise Exception("No Google credentials found. Please provide credentials.json or GOOGLE_CREDENTIALS_JSON env var.")
-    
+        raise Exception("No se encontraron credenciales de Google.")
     return gspread.authorize(creds)
+
+def safe_get(row, col_1indexed):
+    idx = col_1indexed - 1
+    if idx < len(row):
+        return row[idx].strip()
+    return ''
 
 @app.route('/')
 def index():
@@ -44,78 +78,107 @@ def index():
 @app.route('/api/pending', methods=['GET'])
 def get_pending():
     try:
+        user = request.args.get('user', '').lower()
+        if user not in USER_CONFIG:
+            return jsonify({"error": "Usuario no válido. Usa ?user=ignacio o ?user=robinson"}), 400
+
+        cfg = USER_CONFIG[user]
+        sc  = cfg['status_col']
+        rc  = cfg['resp_col']
+        osc = cfg['other_status_col']
+        orc = cfg['other_resp_col']
+        max_col = max(sc, rc, osc, orc)
+
         client = get_gspread_client()
-        sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+        sheet  = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         all_rows = sheet.get_all_values()
-        
-        # Header is row 1
-        headers = all_rows[0]
-        data_rows = all_rows[1:]
-        
+
+        data_rows = all_rows[1:]  # skip header
+
         pending = []
-        # Store previous answers for duplicate detection
         answered_cache = {}
+
         for idx, row in enumerate(data_rows, start=2):
-            if len(row) < COL_LA_REINA_RESP: # Padding if row is short
-                row.extend([''] * (COL_LA_REINA_RESP - len(row)))
-                
-            status = row[COL_LA_REINA_STATUS-1].strip()
-            producto = row[COL_PRODUCTO-1].strip()
-            vehiculo = row[COL_VEHICULO-1].strip()
-            respuesta = row[COL_LA_REINA_RESP-1].strip()
-            
-            # If it's answered, cache it for duplicate check
-            if status or respuesta:
+            # Pad if necessary
+            if len(row) < max_col:
+                row = row + [''] * (max_col - len(row))
+
+            my_status   = safe_get(row, sc)
+            my_resp     = safe_get(row, rc)
+            other_status= safe_get(row, osc)
+            other_resp  = safe_get(row, orc)
+            producto    = safe_get(row, COL_PRODUCTO)
+            vehiculo    = safe_get(row, COL_VEHICULO)
+
+            # Already answered by me → skip but cache for duplicate detection
+            if my_status or my_resp:
                 key = (producto.lower(), vehiculo.lower())
-                if key not in answered_cache:
-                    answered_cache[key] = []
-                answered_cache[key].append({"row": idx, "response": f"[{status}] {respuesta}"})
-                continue
-            
-            # If it's pending (no status and no response)
-            if not status and not respuesta and producto:
-                pending.append({
-                    "row_index": idx,
-                    "folio": row[COL_FOLIO-1],
-                    "producto": producto,
-                    "caracteristicas": row[COL_CARACT-1],
-                    "lado": row[COL_LADO-1],
-                    "marca_modelo_año": vehiculo,
-                    "ejecutivo": row[3], # Column D
-                    "duplicates": []
+                answered_cache.setdefault(key, []).append({
+                    "row": idx,
+                    "response": f"{my_status} — {my_resp}".strip(" —")
                 })
-        
-        # Add duplicate info
+                continue
+
+            # Pending for me
+            if not my_status and not my_resp and producto:
+                pending.append({
+                    "row_index":      idx,
+                    "folio":          safe_get(row, COL_FOLIO),
+                    "fecha":          safe_get(row, COL_FECHA),
+                    "ejecutivo":      safe_get(row, COL_EJECUTIVO),
+                    "producto":       producto,
+                    "caracteristicas":safe_get(row, COL_CARACT),
+                    "lado":           safe_get(row, COL_LADO),
+                    "marca_modelo_año": vehiculo,
+                    "link":           safe_get(row, COL_LINK),
+                    "other_user":     cfg['other_name'],
+                    "other_status":   other_status,
+                    "other_resp":     other_resp,
+                    "duplicates":     []
+                })
+
+        # Inject duplicate info
         for p in pending:
             key = (p["producto"].lower(), p["marca_modelo_año"].lower())
             if key in answered_cache:
                 p["duplicates"] = answered_cache[key]
-                
+
         return jsonify(pending)
+
     except Exception as e:
-        print(f"Error: {e}")
+        print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/update', methods=['POST'])
 def update_row():
     try:
-        data = request.json
-        row_idx = data.get('row_index')
-        status = data.get('status')
-        response_text = data.get('response')
-        
+        data         = request.json
+        row_idx      = data.get('row_index')
+        status       = data.get('status', '')
+        response_text= data.get('response', '')
+        link         = data.get('link', '')
+        user         = data.get('user', '').lower()
+
+        if user not in USER_CONFIG:
+            return jsonify({"error": "Usuario no válido"}), 400
+
+        cfg = USER_CONFIG[user]
+
         client = get_gspread_client()
-        sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
-        
-        # Update Status (J) and Response (K)
-        # update_cells or discrete updates
-        sheet.update_cell(row_idx, COL_LA_REINA_STATUS, status)
-        sheet.update_cell(row_idx, COL_LA_REINA_RESP, response_text)
-        
+        sheet  = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+
+        sheet.update_cell(row_idx, cfg['status_col'], status)
+        sheet.update_cell(row_idx, cfg['resp_col'], response_text)
+        if link:
+            sheet.update_cell(row_idx, COL_LINK, link)
+
         return jsonify({"success": True})
+
     except Exception as e:
-        print(f"Error: {e}")
+        print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))

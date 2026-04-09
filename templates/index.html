@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stock Voice Responder</title>
+    <title>Stock Voice — Responder Consultas</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,23 +11,59 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-    <header>
-        <h1>Stock Voice</h1>
-        <p class="subtitle">Responde consultas de stock con tu voz</p>
-    </header>
 
-    <div class="container" id="cards-container">
-        <!-- Loader during initial fetch -->
-        <div style="text-align: center; padding: 2rem;" id="main-loader">
-            <div class="loader" style="display: inline-block; border-top-color: var(--primary);"></div>
-            <p style="margin-top: 1rem; color: var(--text-muted);">Cargando consultas pendientes...</p>
+    <!-- ===== USER SELECTION SCREEN ===== -->
+    <div id="user-select-screen" class="user-select-screen">
+        <div class="user-select-content">
+            <div class="user-select-logo">
+                <i class="fas fa-boxes-stacked"></i>
+            </div>
+            <h1>Stock Voice</h1>
+            <p class="user-select-subtitle">¿Quién responde hoy?</p>
+            <div class="user-cards">
+                <button class="user-card user-card--ignacio" id="btn-ignacio" onclick="selectUser('ignacio')">
+                    <div class="user-card-icon"><i class="fas fa-user-tie"></i></div>
+                    <div class="user-card-name">Ignacio Castañeda</div>
+                    <div class="user-card-role">La Reina</div>
+                </button>
+                <button class="user-card user-card--robinson" id="btn-robinson" onclick="selectUser('robinson')">
+                    <div class="user-card-icon"><i class="fas fa-user"></i></div>
+                    <div class="user-card-name">Robinson</div>
+                    <div class="user-card-role">Respuestas Externas</div>
+                </button>
+            </div>
         </div>
     </div>
 
-    <div class="refresh-bar">
-        <button class="refresh-btn" id="refresh-btn">
-            <i class="fas fa-sync-alt" id="refresh-icon"></i> Sincronizar
-        </button>
+    <!-- ===== MAIN APP ===== -->
+    <div id="main-app" style="display:none;">
+        <header>
+            <div class="header-top">
+                <div class="header-left">
+                    <i class="fas fa-boxes-stacked"></i>
+                    <h1>Stock Voice</h1>
+                </div>
+                <button class="change-user-btn" id="change-user-btn" onclick="changeUser()">
+                    <i class="fas fa-user-circle"></i>
+                    <span id="current-user-label">—</span>
+                    <i class="fas fa-chevron-down" style="font-size:0.7rem; opacity:0.7;"></i>
+                </button>
+            </div>
+            <p class="subtitle" id="header-subtitle">Cargando...</p>
+        </header>
+
+        <div class="container" id="cards-container">
+            <div style="text-align: center; padding: 2rem;" id="main-loader">
+                <div class="loader" style="display: inline-block;"></div>
+                <p style="margin-top: 1rem; color: var(--text-muted);">Cargando consultas pendientes...</p>
+            </div>
+        </div>
+
+        <div class="refresh-bar">
+            <button class="refresh-btn" id="refresh-btn">
+                <i class="fas fa-sync-alt" id="refresh-icon"></i> Sincronizar
+            </button>
+        </div>
     </div>
 
     <script src="/static/js/script.js"></script>
