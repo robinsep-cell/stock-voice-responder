@@ -4,6 +4,11 @@
 
 // ---- State ----
 let currentUser = null;
+
+// ---- Helpers ----
+function isValidFotoUrl(str) {
+    return typeof str === 'string' && str.startsWith('http');
+}
 let consultations = [];
 
 // ---- DOM refs ----
@@ -195,7 +200,7 @@ function renderCards() {
                 </div>
             </div>
 
-            ${item.foto ? `
+            ${isValidFotoUrl(item.foto) ? `
             <a href="${item.foto}" target="_blank" class="foto-preview-btn">
                 <i class="fas fa-image"></i> Ver foto adjunta
             </a>` : ''}
@@ -394,7 +399,7 @@ function renderCCResults(items) {
                 ${item.la_reina ? `<span class="status-pill status--blue">${item.la_reina}</span>` : ''}
                 ${item.externo  ? `<span class="status-pill status--green">${item.externo}</span>` : ''}
             </div>
-            ${item.foto ? `
+            ${isValidFotoUrl(item.foto) ? `
                 <a href="${item.foto}" target="_blank" class="foto-preview-btn" style="margin-bottom:0.75rem;display:inline-flex;">
                     <i class="fas fa-image"></i> Ver foto actual
                 </a>` : ''}

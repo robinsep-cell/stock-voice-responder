@@ -125,8 +125,8 @@
         </div>
     </div>
 
-    <!-- hidden file input for photo upload -->
-    <input type="file" id="foto-input" accept="image/*" capture="environment" style="display:none;" onchange="handleFotoSelected(event)" />
+    <!-- hidden file input: no capture attr so user can choose camera OR gallery -->
+    <input type="file" id="foto-input" accept="image/*" style="display:none;" onchange="handleFotoSelected(event)" />
 
     <script src="/static/js/script.js"></script>
 </body>
