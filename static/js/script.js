@@ -57,7 +57,11 @@ window.selectUser = function(user) {
     currentUser = user;
     localStorage.setItem('stockvoice_user', user);
     showMainApp();
-    fetchConsultations();
+    fetchConsultations().then(() => {
+        lastKnownCount = consultations.length;
+        requestNotificationPermission();
+        startPolling();
+    });
 };
 
 window.changeUser = function() {
@@ -521,6 +525,67 @@ window.saveHistoryEdit = async function(idx, rowIndex) {
 // =============================================
 // INIT
 // =============================================
+let pollInterval  = null;
+let lastKnownCount = null;
+
+function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+}
+
+function fireNotification(newItems) {
+    const diff = newItems - lastKnownCount;
+    if (diff <= 0) return;
+
+    // In-page sound (simple beep via AudioContext)
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.4);
+    } catch(_) {}
+
+    // Browser notification (works in background tab)
+    if ('Notification' in window && Notification.permission === 'granted') {
+        const cfg = USER_DISPLAY[currentUser];
+        new Notification('Stock Voice — Nueva consulta 📦', {
+            body: `${diff} nueva${diff > 1 ? 's' : ''} consulta${diff > 1 ? 's' : ''} para ${cfg.label}`,
+            tag: 'stock-voice-new',
+            renotify: true,
+        });
+    }
+}
+
+async function autoPoll() {
+    if (!currentUser) return;
+    try {
+        const res  = await fetch(`/api/pending?user=${currentUser}`);
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+
+        const count = data.length;
+        if (lastKnownCount !== null && count > lastKnownCount) {
+            fireNotification(count);
+            consultations = data;
+            renderCards();
+            const cfg = USER_DISPLAY[currentUser];
+            headerSubtitle.textContent = `${count} pendiente${count !== 1 ? 's' : ''} — ${cfg.role}`;
+        }
+        lastKnownCount = count;
+    } catch(_) { /* silent */ }
+}
+
+function startPolling() {
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(autoPoll, 60000); // cada 60 segundos
+}
+
 refreshBtn.addEventListener('click', fetchConsultations);
 
 window.addEventListener('load', () => {
@@ -528,7 +593,11 @@ window.addEventListener('load', () => {
     if (savedUser && USER_DISPLAY[savedUser]) {
         currentUser = savedUser;
         showMainApp();
-        fetchConsultations();
+        fetchConsultations().then(() => {
+            lastKnownCount = consultations.length;
+            requestNotificationPermission();
+            startPolling();
+        });
     } else {
         userSelectScreen.style.display = 'flex';
         mainApp.style.display = 'none';
