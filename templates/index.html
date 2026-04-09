@@ -43,11 +43,16 @@
                     <i class="fas fa-boxes-stacked"></i>
                     <h1>Stock Voice</h1>
                 </div>
-                <button class="change-user-btn" id="change-user-btn" onclick="changeUser()">
-                    <i class="fas fa-user-circle"></i>
-                    <span id="current-user-label">—</span>
-                    <i class="fas fa-chevron-down" style="font-size:0.7rem; opacity:0.7;"></i>
-                </button>
+                <div style="display:flex; gap:0.5rem; align-items:center;">
+                    <button class="history-btn" onclick="showHistory()" title="Historial">
+                        <i class="fas fa-clock-rotate-left"></i>
+                    </button>
+                    <button class="change-user-btn" id="change-user-btn" onclick="changeUser()">
+                        <i class="fas fa-user-circle"></i>
+                        <span id="current-user-label">—</span>
+                        <i class="fas fa-chevron-down" style="font-size:0.7rem; opacity:0.7;"></i>
+                    </button>
+                </div>
             </div>
             <p class="subtitle" id="header-subtitle">Cargando...</p>
         </header>
@@ -63,6 +68,27 @@
             <button class="refresh-btn" id="refresh-btn">
                 <i class="fas fa-sync-alt" id="refresh-icon"></i> Sincronizar
             </button>
+        </div>
+    </div>
+
+    <!-- ===== HISTORY SCREEN ===== -->
+    <div id="history-screen" style="display:none;">
+        <header>
+            <div class="header-top">
+                <button class="back-btn" onclick="showMain()">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+                <span class="history-title">Historial</span>
+                <div style="width:80px;"></div>
+            </div>
+            <p class="subtitle" id="history-subtitle">Cargando...</p>
+        </header>
+
+        <div class="container" id="history-container">
+            <div style="text-align: center; padding: 2rem;" id="history-loader">
+                <div class="loader" style="display: inline-block;"></div>
+                <p style="margin-top: 1rem; color: var(--text-muted);">Cargando historial...</p>
+            </div>
         </div>
     </div>
 

@@ -313,6 +313,212 @@ window.submitResponse = async function(idx) {
 };
 
 // =============================================
+// HISTORY
+// =============================================
+const historyScreen    = document.getElementById('history-screen');
+const historyContainer = document.getElementById('history-container');
+const historySubtitle  = document.getElementById('history-subtitle');
+
+let historyData = [];
+let editingIndex = null;
+
+window.showHistory = async function() {
+    mainApp.style.display = 'none';
+    historyScreen.style.display = 'block';
+    historySubtitle.textContent = 'Cargando...';
+    historyContainer.innerHTML = `
+        <div style="text-align:center;padding:2rem;">
+            <div class="loader" style="display:inline-block;"></div>
+            <p style="margin-top:1rem;color:var(--text-muted);">Cargando historial...</p>
+        </div>`;
+    await fetchHistory();
+};
+
+window.showMain = function() {
+    historyScreen.style.display = 'none';
+    mainApp.style.display = 'block';
+};
+
+async function fetchHistory() {
+    try {
+        const res  = await fetch(`/api/history?user=${currentUser}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        historyData = data;
+        renderHistory();
+    } catch(err) {
+        historyContainer.innerHTML = `<p style="text-align:center;color:var(--danger);padding:2rem;">Error: ${err.message}</p>`;
+    }
+}
+
+function renderHistory(filter = '') {
+    const cfg = USER_DISPLAY[currentUser];
+    const filtered = filter
+        ? historyData.filter(h =>
+            h.producto.toLowerCase().includes(filter) ||
+            h.marca_modelo_año?.toLowerCase().includes(filter) ||
+            h.folio?.includes(filter) ||
+            h.my_status?.toLowerCase().includes(filter))
+        : historyData;
+
+    historySubtitle.textContent = `${filtered.length} respuesta${filtered.length !== 1 ? 's' : ''} — ${cfg.role}`;
+
+    if (filtered.length === 0) {
+        historyContainer.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <h2>${filter ? 'Sin resultados' : 'Sin respuestas aún'}</h2>
+                <p>${filter ? 'Prueba otro término de búsqueda.' : 'Aún no tienes respuestas registradas.'}</p>
+            </div>`;
+        return;
+    }
+
+    historyContainer.innerHTML = `
+        <div class="search-bar">
+            <i class="fas fa-search"></i>
+            <input type="text" id="history-search" placeholder="Buscar por producto, vehículo, folio..." value="${filter}"
+                oninput="renderHistory(this.value.toLowerCase())" />
+        </div>
+        ${filtered.map((item, idx) => renderHistoryCard(item, idx)).join('')}`;
+}
+
+function renderHistoryCard(item, idx) {
+    const isEditing = editingIndex === idx;
+    const statusClass =
+        item.my_status.includes('Disponible') && !item.my_status.includes('No') ? 'status--green' :
+        item.my_status.includes('No') ? 'status--red' : 'status--blue';
+
+    const otherClass = item.other_user.toLowerCase() === 'ignacio' ? 'ignacio' : 'robinson';
+    const otherBlock = (item.other_status || item.other_resp) ? `
+        <div class="other-response other-response--${otherClass}" style="margin-bottom:0.75rem;">
+            <i class="fas fa-user-check"></i>
+            <div class="other-response-text">
+                <div class="other-response-name">${item.other_user}</div>
+                <div class="other-response-status">${item.other_status || '—'}</div>
+                ${item.other_resp ? `<div class="other-response-detail">${item.other_resp}</div>` : ''}
+            </div>
+        </div>` : '';
+
+    const editForm = isEditing ? `
+        <div class="history-edit-form" id="edit-form-${idx}">
+            <div class="status-grid" id="edit-status-grid-${idx}">
+                ${QUICK_STATUS.map(s =>
+                    `<button class="status-btn ${item.my_status === s.text ? 'selected' : ''}" onclick="selectEditStatus(${idx}, '${s.text}')">${s.icon} ${s.text}</button>`
+                ).join('')}
+            </div>
+            <div class="quick-chips">
+                ${QUICK_CHIPS.map(c =>
+                    `<button class="chip" onclick="fillEditChip(${idx}, '${c.replace(/'/g, "\\'")}')"> ${c}</button>`
+                ).join('')}
+            </div>
+            <div class="input-group">
+                <textarea id="edit-resp-${idx}" placeholder="Explicación...">${item.my_resp}</textarea>
+            </div>
+            <div class="link-group" style="margin-bottom:0.75rem;">
+                <i class="fas fa-link"></i>
+                <input type="url" id="edit-link-${idx}" value="${item.link || ''}" placeholder="Link de cotización (opcional)..." />
+            </div>
+            <div style="display:flex;gap:0.5rem;">
+                <button class="submit-btn" id="edit-save-${idx}" onclick="saveHistoryEdit(${idx}, ${item.row_index})" style="flex:1;">
+                    <i class="fas fa-check"></i> Guardar
+                </button>
+                <button onclick="cancelEdit()" style="flex:0.4;background:var(--bg3);border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius-sm);font-family:Inter,sans-serif;font-size:0.85rem;cursor:pointer;">
+                    Cancelar
+                </button>
+            </div>
+        </div>` : `
+        <button class="edit-btn" onclick="startEditHistory(${idx})">
+            <i class="fas fa-pen"></i> Editar
+        </button>`;
+
+    const linkBtn = item.link && !isEditing
+        ? `<a href="${item.link}" target="_blank" class="link-pill"><i class="fas fa-link"></i> Ver link</a>` : '';
+
+    return `
+    <div class="history-card" id="hcard-${idx}">
+        <div class="card-header" style="margin-bottom:0.75rem;">
+            <div style="display:flex;flex-direction:column;gap:3px;">
+                <span class="badge">Folio ${item.folio || 'S/N'}</span>
+                ${item.fecha ? `<span class="fecha-badge"><i class="fas fa-calendar-alt"></i> ${item.fecha}</span>` : ''}
+            </div>
+            <span class="ejecutivo-badge"><i class="fas fa-headset" style="margin-right:4px;"></i>${item.ejecutivo || '—'}</span>
+        </div>
+
+        <div style="margin-bottom:0.6rem;">
+            <div style="font-weight:700;font-size:1rem;color:var(--text);">${item.producto}</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">${item.marca_modelo_año || ''} ${item.lado ? '· ' + item.lado : ''}</div>
+        </div>
+
+        <div class="history-response-block">
+            <span class="status-pill ${statusClass}">${item.my_status}</span>
+            ${item.my_resp ? `<span class="history-resp-text">${item.my_resp}</span>` : ''}
+            ${linkBtn}
+        </div>
+
+        ${otherBlock}
+        ${editForm}
+    </div>`;
+}
+
+let editSelectedStatuses = {};
+
+window.startEditHistory = function(idx) {
+    editingIndex = idx;
+    editSelectedStatuses[idx] = historyData[idx].my_status;
+    renderHistory(document.getElementById('history-search')?.value.toLowerCase() || '');
+    setTimeout(() => document.getElementById(`edit-resp-${idx}`)?.focus(), 100);
+};
+
+window.cancelEdit = function() {
+    editingIndex = null;
+    renderHistory(document.getElementById('history-search')?.value.toLowerCase() || '');
+};
+
+window.selectEditStatus = function(idx, status) {
+    editSelectedStatuses[idx] = status;
+    document.querySelectorAll(`#edit-status-grid-${idx} .status-btn`).forEach(btn => {
+        const t = btn.innerText.replace(/^[\u{1F000}-\u{1FFFF}\u2600-\u27FF]\s*/u, '').trim();
+        btn.classList.toggle('selected', t === status);
+    });
+};
+
+window.fillEditChip = function(idx, text) {
+    const ta = document.getElementById(`edit-resp-${idx}`);
+    if (ta) ta.value = text;
+};
+
+window.saveHistoryEdit = async function(idx, rowIndex) {
+    const status = editSelectedStatuses[idx] || historyData[idx].my_status;
+    const resp   = document.getElementById(`edit-resp-${idx}`).value.trim();
+    const link   = document.getElementById(`edit-link-${idx}`).value.trim();
+    const saveBtn= document.getElementById(`edit-save-${idx}`);
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<div class="loader" style="width:16px;height:16px;border-width:2px;display:inline-block;"></div> Guardando...';
+
+    try {
+        const res = await fetch('/api/update', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ row_index: rowIndex, status, response: resp, link, user: currentUser }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        // Update local data
+        historyData[idx].my_status = status;
+        historyData[idx].my_resp   = resp;
+        historyData[idx].link      = link;
+        editingIndex = null;
+        renderHistory(document.getElementById('history-search')?.value.toLowerCase() || '');
+    } catch(err) {
+        alert(`Error al guardar: ${err.message}`);
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-check"></i> Guardar';
+    }
+};
+
+// =============================================
 // INIT
 // =============================================
 refreshBtn.addEventListener('click', fetchConsultations);
