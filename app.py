@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import traceback
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
@@ -54,6 +55,9 @@ USER_CONFIG = {
         'other_resp_col':   COL_IGNACIO_RESP,
     },
 }
+
+# ---- In-memory foto event log ----
+recent_foto_events = []
 
 def get_gspread_client():
     scopes = ['https://www.googleapis.com/auth/spreadsheets']
@@ -235,17 +239,19 @@ def search_consultations():
                 continue
 
             results.append({
-                'row_index':       idx,
-                'folio':           folio,
-                'fecha':           safe_get(padded, COL_FECHA),
-                'ejecutivo':       ejecutivo,
-                'producto':        producto,
-                'caracteristicas': safe_get(padded, COL_CARACT),
-                'lado':            safe_get(padded, COL_LADO),
+                'row_index':        idx,
+                'folio':            folio,
+                'fecha':            safe_get(padded, COL_FECHA),
+                'ejecutivo':        ejecutivo,
+                'producto':         producto,
+                'caracteristicas':  safe_get(padded, COL_CARACT),
+                'lado':             safe_get(padded, COL_LADO),
                 'marca_modelo_año': vehiculo,
-                'foto':            safe_get(padded, COL_FOTO),
-                'la_reina':        safe_get(padded, COL_IGNACIO_STATUS),
-                'externo':         safe_get(padded, COL_ROBINSON_STATUS),
+                'foto':             safe_get(padded, COL_FOTO),
+                'la_reina':         safe_get(padded, COL_IGNACIO_STATUS),
+                'la_reina_resp':    safe_get(padded, COL_IGNACIO_RESP),
+                'externo':          safe_get(padded, COL_ROBINSON_STATUS),
+                'robinson_resp':    safe_get(padded, COL_ROBINSON_RESP),
             })
             if len(results) >= 20:
                 break
@@ -262,15 +268,35 @@ def update_foto():
         data    = request.json
         row_idx = data.get('row_index')
         url     = data.get('foto_url', '')
+        folio   = data.get('folio', '')
+        producto= data.get('producto', '')
 
         client = get_gspread_client()
         sheet  = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         sheet.update_cell(row_idx, COL_FOTO, url)
 
+        # Record event so respondents can be notified
+        recent_foto_events.append({
+            'folio':    folio,
+            'producto': producto,
+            'url':      url,
+            'ts':       time.time(),
+        })
+        # Keep only the last 30 events
+        if len(recent_foto_events) > 30:
+            recent_foto_events.pop(0)
+
         return jsonify({'success': True})
     except Exception as e:
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/foto-events', methods=['GET'])
+def foto_events():
+    since = float(request.args.get('since', 0))
+    new_events = [e for e in recent_foto_events if e['ts'] > since]
+    return jsonify(new_events)
 
 
 @app.route('/api/update', methods=['POST'])

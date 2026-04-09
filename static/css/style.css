@@ -138,6 +138,27 @@ html, body {
     display: flex; align-items: center;
 }
 
+/* CC response details */
+.cc-responses {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.65rem 0.85rem; margin-bottom: 0.75rem;
+    display: flex; flex-direction: column; gap: 0.5rem;
+}
+.cc-response-row {
+    display: flex; align-items: flex-start; gap: 0.6rem;
+}
+.cc-resp-label {
+    font-size: 0.72rem; font-weight: 700;
+    min-width: 62px; padding-top: 2px;
+}
+.cc-resp-content {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; flex: 1;
+}
+.cc-resp-text {
+    font-size: 0.8rem; color: var(--text-sub);
+}
+
 .foto-preview-btn {
     display: inline-flex; align-items: center; gap: 0.4rem;
     background: rgba(79,142,247,0.1);

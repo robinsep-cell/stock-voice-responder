@@ -342,6 +342,7 @@ const ccResults = document.getElementById('cc-results');
 
 let ccSearchTimer = null;
 let currentFotoRowIndex = null;
+let currentFotoInfo    = { rowIndex: null, folio: '', producto: '', cardIdx: null };
 
 function showCCScreen() {
     userSelectScreen.style.display  = 'none';
@@ -395,26 +396,44 @@ function renderCCResults(items) {
             <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;">
                 ${item.marca_modelo_año || ''} ${item.lado ? '· ' + item.lado : ''}
             </div>
-            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.75rem;">
-                ${item.la_reina ? `<span class="status-pill status--blue">${item.la_reina}</span>` : ''}
-                ${item.externo  ? `<span class="status-pill status--green">${item.externo}</span>` : ''}
-            </div>
+
+            <!-- Respuestas de La Reina e Ignacio -->
+            ${(item.la_reina || item.la_reina_resp || item.externo || item.robinson_resp) ? `
+            <div class="cc-responses">
+                ${item.la_reina || item.la_reina_resp ? `
+                <div class="cc-response-row">
+                    <span class="cc-resp-label" style="color:var(--ignacio);">La Reina</span>
+                    <div class="cc-resp-content">
+                        ${item.la_reina ? `<span class="status-pill status--blue">${item.la_reina}</span>` : ''}
+                        ${item.la_reina_resp ? `<span class="cc-resp-text">${item.la_reina_resp}</span>` : ''}
+                    </div>
+                </div>` : ''}
+                ${item.externo || item.robinson_resp ? `
+                <div class="cc-response-row">
+                    <span class="cc-resp-label" style="color:var(--robinson);">Externo</span>
+                    <div class="cc-resp-content">
+                        ${item.externo ? `<span class="status-pill status--green">${item.externo}</span>` : ''}
+                        ${item.robinson_resp ? `<span class="cc-resp-text">${item.robinson_resp}</span>` : ''}
+                    </div>
+                </div>` : ''}
+            </div>` : '<p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem;">Sin respuesta aún</p>'}
+
             ${isValidFotoUrl(item.foto) ? `
                 <a href="${item.foto}" target="_blank" class="foto-preview-btn" style="margin-bottom:0.75rem;display:inline-flex;">
                     <i class="fas fa-image"></i> Ver foto actual
                 </a>` : ''}
-            <button class="cc-upload-btn" onclick="triggerFotoUpload(${item.row_index}, ${idx})">
+            <button class="cc-upload-btn" onclick="triggerFotoUpload(${item.row_index}, ${idx}, '${(item.folio||'').replace(/'/g,'')}', '${(item.producto||'').replace(/'/g,'').replace(/`/g,'')}')">
                 <i class="fas fa-camera"></i>
-                ${item.foto ? 'Reemplazar foto' : 'Subir foto'}
+                ${isValidFotoUrl(item.foto) ? 'Reemplazar foto' : 'Subir foto'}
             </button>
             <div id="cc-status-${idx}" class="cc-upload-status"></div>
         </div>
     `).join('');
 }
 
-window.triggerFotoUpload = function(rowIndex, cardIdx) {
+window.triggerFotoUpload = function(rowIndex, cardIdx, folio, producto) {
+    currentFotoInfo = { rowIndex, folio: folio || '', producto: producto || '', cardIdx };
     currentFotoRowIndex = rowIndex;
-    window._currentCCCardIdx = cardIdx;
     document.getElementById('foto-input').click();
 };
 
@@ -423,9 +442,9 @@ window.handleFotoSelected = async function(event) {
     if (!file) return;
     event.target.value = '';
 
-    const cardIdx = window._currentCCCardIdx;
+    const cardIdx   = currentFotoInfo.cardIdx;
     const statusDiv = document.getElementById(`cc-status-${cardIdx}`);
-    const btn = document.querySelector(`#cc-card-${cardIdx} .cc-upload-btn`);
+    const btn       = document.querySelector(`#cc-card-${cardIdx} .cc-upload-btn`);
 
     statusDiv.innerHTML = '<div class="loader" style="display:inline-block;width:18px;height:18px;border-width:2px;margin-right:6px;"></div> Subiendo foto...';
     if (btn) { btn.disabled = true; }
@@ -450,7 +469,12 @@ window.handleFotoSelected = async function(event) {
         const saveRes  = await fetch('/api/update-foto', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ row_index: currentFotoRowIndex, foto_url: fotoUrl }),
+            body: JSON.stringify({
+                row_index: currentFotoInfo.rowIndex,
+                foto_url:  fotoUrl,
+                folio:     currentFotoInfo.folio,
+                producto:  currentFotoInfo.producto,
+            }),
         });
         const saveData = await saveRes.json();
         if (!saveData.success) throw new Error(saveData.error);
@@ -685,8 +709,9 @@ window.saveHistoryEdit = async function(idx, rowIndex) {
 // =============================================
 // INIT
 // =============================================
-let pollInterval  = null;
-let lastKnownCount = null;
+let pollInterval    = null;
+let lastKnownCount  = null;
+let lastFotoEventTime = Math.floor(Date.now() / 1000);
 
 function requestNotificationPermission() {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -738,6 +763,24 @@ async function autoPoll() {
             headerSubtitle.textContent = `${count} pendiente${count !== 1 ? 's' : ''} — ${cfg.role}`;
         }
         lastKnownCount = count;
+    } catch(_) { /* silent */ }
+
+    // Check for new foto uploads from Call Center
+    try {
+        const fRes  = await fetch(`/api/foto-events?since=${lastFotoEventTime}`);
+        const fData = await fRes.json();
+        lastFotoEventTime = Math.floor(Date.now() / 1000);
+        if (Array.isArray(fData) && fData.length > 0) {
+            fData.forEach(ev => {
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification('📷 Nueva foto recibida', {
+                        body: `Folio ${ev.folio || '?'}: ${ev.producto || 'Consulta'}`,
+                        tag:  'foto-' + ev.folio,
+                        renotify: true,
+                    });
+                }
+            });
+        }
     } catch(_) { /* silent */ }
 }
 
