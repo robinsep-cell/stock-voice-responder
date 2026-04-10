@@ -610,50 +610,46 @@ async function fetchHistory() {
     }
 }
 
-function renderHistory(filter = '') {
+function renderHistory(initialSearch = '') {
     const cfg = USER_DISPLAY[currentUser];
-    const filtered = filter
-        ? historyData.filter(h =>
-            h.producto.toLowerCase().includes(filter) ||
-            h.marca_modelo_año?.toLowerCase().includes(filter) ||
-            h.folio?.includes(filter) ||
-            h.my_status?.toLowerCase().includes(filter))
-        : historyData;
 
-    historySubtitle.textContent = `${filtered.length} respuesta${filtered.length !== 1 ? 's' : ''} — ${cfg.role}`;
-
-    if (filtered.length === 0) {
+    if (historyData.length === 0) {
         historyContainer.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-inbox"></i>
-                <h2>${filter ? 'Sin resultados' : 'Sin respuestas aún'}</h2>
-                <p>${filter ? 'Prueba otro término de búsqueda.' : 'Aún no tienes respuestas registradas.'}</p>
+                <h2>Sin respuestas aún</h2>
+                <p>Aún no tienes respuestas registradas.</p>
             </div>`;
+        historySubtitle.textContent = `0 respuestas — ${cfg.role}`;
         return;
     }
 
     historyContainer.innerHTML =
         `<div class="search-bar" style="margin-bottom:0;">
             <i class="fas fa-search"></i>
-            <input type="text" id="history-search" placeholder="Folio, producto, vehículo..." />
+            <input type="text" id="history-search" placeholder="Folio, producto, vehículo..." value="${initialSearch}" />
         </div>
         <div id="history-cards"></div>`;
 
     const searchEl = document.getElementById('history-search');
     const cardsEl  = document.getElementById('history-cards');
 
-    cardsEl.innerHTML = filtered.map((item, idx) => renderHistoryCard(item, idx)).join('');
+    // Always map full data so idx matches historyData[idx]
+    cardsEl.innerHTML = historyData.map((item, idx) => renderHistoryCard(item, idx)).join('');
 
-    searchEl.addEventListener('input', function() {
-        const q = this.value.toLowerCase().trim();
+    const applySearch = () => {
+        const q = searchEl.value.toLowerCase().trim();
         let visible = 0;
         cardsEl.querySelectorAll('.history-card').forEach(card => {
             const match = !q || (card.dataset.searchText || '').includes(q);
             card.style.display = match ? '' : 'none';
             if (match) visible++;
         });
-        historySubtitle.textContent = `${visible} respuesta${visible !== 1 ? 's' : ''} — ${USER_DISPLAY[currentUser].role}`;
-    });
+        historySubtitle.textContent = `${visible} respuesta${visible !== 1 ? 's' : ''} — ${cfg.role}`;
+    };
+
+    searchEl.addEventListener('input', applySearch);
+    applySearch(); // initial application of filter
 }
 
 function renderHistoryCard(item, idx) {
