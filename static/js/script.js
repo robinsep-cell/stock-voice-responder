@@ -29,22 +29,33 @@ const USER_DISPLAY = {
 
 // ---- Quick Status Buttons (K / M) ----
 const QUICK_STATUS = [
-    { icon: '✅', text: 'Disponible' },
-    { icon: '❌', text: 'No Disponible' },
-    { icon: '📦', text: 'A Pedido' },
+    { icon: '✅', text: 'Disponible Nacional' },
+    { icon: '♻️', text: 'Disponible Re-Acondicionado' },
+    { icon: '🚢', text: 'Importación' },
+    { icon: '❌', text: 'No disponible' },
+    { icon: '⚡', text: 'Parcialmente Disponible' },
+    { icon: '💬', text: 'Otra respuesta' },
     { icon: '📸', text: 'Necesita Foto' },
-    { icon: '💰', text: 'Precio Actualizado' },
-    { icon: '🔔', text: 'Falta Información' },
 ];
 
-// ---- Quick Explanation Chips (L / N) ----
+// ---- Quick Explanation Chips (L / N) — MULTI-SELECT ----
 const QUICK_CHIPS = [
-    'Para el mismo dia, Precio de Panal',
-    'Para 12 dias, Se puede Poner provisorio',
-    'Todo menos la Base',
-    'Para 30 dias',
-    'Solo piezas reacondicionadas',
+    'Solo piezas',
+    'Precio de Panal',
+    '12 días',
+    '30 días',
+    'Mismo dia',
+    'En 3 horas',
+    'En Sucursal',
+    'Sin Base',
+    'CV',
+    'YK',
+    'LCH',
 ];
+
+// ---- Chip multi-select state ----
+let selectedChips     = {}; // pending cards: { cardIdx: Set<string> }
+let editSelectedChips = {}; // history edit:  { histIdx: Set<string> }
 
 // ---- Speech Recognition ----
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -168,9 +179,9 @@ function renderCards() {
             `<button class="status-btn" onclick="selectStatus(${idx}, '${s.text}')">${s.icon} ${s.text}</button>`
         ).join('');
 
-        // Quick explanation chips
+        // Quick explanation chips — multi-select
         const chips = QUICK_CHIPS.map(c =>
-            `<button class="chip" onclick="fillChip(${idx}, '${c.replace(/'/g, "\\'")}')">${c}</button>`
+            `<button class="chip" data-card="${idx}" data-chip="${c}" onclick="toggleChip(${idx}, '${c.replace(/'/g, "\\'")}')"> ${c}</button>`
         ).join('');
 
         return `
@@ -283,6 +294,32 @@ window.startVoice = function(idx) {
         recognition.stop();
         btn.classList.remove('recording');
     };
+};
+
+// ---- Multi-select chip toggle (pending cards) ----
+window.toggleChip = function(idx, chip) {
+    if (!selectedChips[idx]) selectedChips[idx] = new Set();
+    const set = selectedChips[idx];
+    if (set.has(chip)) { set.delete(chip); } else { set.add(chip); }
+    // Reflect on button
+    document.querySelectorAll(`[data-card="${idx}"][data-chip]`).forEach(btn => {
+        btn.classList.toggle('selected', set.has(btn.dataset.chip));
+    });
+    // Update textarea preserving chip order
+    const ta = document.getElementById(`response-${idx}`);
+    if (ta) ta.value = QUICK_CHIPS.filter(c => set.has(c)).join(', ');
+};
+
+// ---- Multi-select chip toggle (history edit) ----
+window.toggleEditChip = function(idx, chip) {
+    if (!editSelectedChips[idx]) editSelectedChips[idx] = new Set();
+    const set = editSelectedChips[idx];
+    if (set.has(chip)) { set.delete(chip); } else { set.add(chip); }
+    document.querySelectorAll(`[data-ecard="${idx}"][data-chip]`).forEach(btn => {
+        btn.classList.toggle('selected', set.has(btn.dataset.chip));
+    });
+    const ta = document.getElementById(`edit-resp-${idx}`);
+    if (ta) ta.value = QUICK_CHIPS.filter(c => set.has(c)).join(', ');
 };
 
 window.submitResponse = async function(idx) {
@@ -592,7 +629,7 @@ function renderHistoryCard(item, idx) {
             </div>
             <div class="quick-chips">
                 ${QUICK_CHIPS.map(c =>
-                    `<button class="chip" onclick="fillEditChip(${idx}, '${c.replace(/'/g, "\\'")}')"> ${c}</button>`
+                    `<button class="chip ${editSelectedChips[idx]?.has(c) ? 'selected' : ''}" data-ecard="${idx}" data-chip="${c}" onclick="toggleEditChip(${idx}, '${c.replace(/'/g, "\\'")}')"> ${c}</button>`
                 ).join('')}
             </div>
             <div class="input-group">
@@ -653,12 +690,16 @@ let editSelectedStatuses = {};
 window.startEditHistory = function(idx) {
     editingIndex = idx;
     editSelectedStatuses[idx] = historyData[idx].my_status;
+    // Pre-select chips that match the current response text
+    const currentResp = historyData[idx].my_resp || '';
+    editSelectedChips[idx] = new Set(QUICK_CHIPS.filter(c => currentResp.includes(c)));
     renderHistory(document.getElementById('history-search')?.value.toLowerCase() || '');
     setTimeout(() => document.getElementById(`edit-resp-${idx}`)?.focus(), 100);
 };
 
 window.cancelEdit = function() {
     editingIndex = null;
+    editSelectedChips = {};
     renderHistory(document.getElementById('history-search')?.value.toLowerCase() || '');
 };
 
@@ -670,10 +711,7 @@ window.selectEditStatus = function(idx, status) {
     });
 };
 
-window.fillEditChip = function(idx, text) {
-    const ta = document.getElementById(`edit-resp-${idx}`);
-    if (ta) ta.value = text;
-};
+window.fillEditChip = window.toggleEditChip; // alias for backwards compatibility
 
 window.saveHistoryEdit = async function(idx, rowIndex) {
     const status = editSelectedStatuses[idx] || historyData[idx].my_status;

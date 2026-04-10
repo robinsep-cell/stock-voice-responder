@@ -370,6 +370,13 @@ header {
 }
 .chip:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-dim); }
 .chip:active { transform: scale(0.96); }
+.chip.selected {
+    background: var(--primary-dim);
+    border-color: var(--primary);
+    color: var(--primary);
+    box-shadow: 0 0 0 1px var(--primary);
+    font-weight: 700;
+}
 
 /* Textarea + voice */
 .input-group {
