@@ -1,9 +1,12 @@
 import os
 import json
 import time
+import uuid
 import traceback
+from functools import wraps
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash
 import gspread
 from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
@@ -12,6 +15,8 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+VALID_TOKENS = {}
 
 SHEET_ID = '1J3t28M_0oZuVjkZ8GxNrD08kiGqd-A08I23jAiv8dPU'
 SHEET_NAME = 'Base'
@@ -71,6 +76,20 @@ def get_gspread_client():
         raise Exception("No se encontraron credenciales de Google.")
     return gspread.authorize(creds)
 
+def get_user_from_token(token):
+    if not token: return None
+    if token in VALID_TOKENS: return VALID_TOKENS[token]
+    try:
+        client = get_gspread_client()
+        sheet = client.open_by_key(SHEET_ID).worksheet('Usuarios')
+        for r in sheet.get_all_values()[1:]:
+            if len(r) >= 6 and r[5] == token and r[3] == 'Aprobado':
+                user = {'email': r[0], 'name': r[1], 'role': r[2]}
+                VALID_TOKENS[token] = user
+                return user
+    except: pass
+    return None
+
 def safe_get(row, col_1indexed):
     idx = col_1indexed - 1
     if idx < len(row):
@@ -82,10 +101,87 @@ def index():
     imgbb_key = os.environ.get('IMGBB_API_KEY', '')
     return render_template('index.html', imgbb_key=imgbb_key)
 
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Acceso no autorizado'}), 401
+        token = auth_header.split(' ')[1]
+        user_obj = get_user_from_token(token)
+        if not user_obj:
+            return jsonify({'error': 'Sesión expirada o inválida'}), 401
+        
+        # Inject user logic inside the request context
+        request.user_obj = user_obj 
+        return f(*args, **kwargs)
+    return decorated
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    data = request.json
+    email = data.get('email', '').lower().strip()
+    password = data.get('password', '')
+    if not email or not password:
+        return jsonify({'error': 'Faltan credenciales'}), 400
+    try:
+        client = get_gspread_client()
+        try:
+            sheet = client.open_by_key(SHEET_ID).worksheet('Usuarios')
+        except gspread.exceptions.WorksheetNotFound:
+            return jsonify({'error': 'La hoja Usuarios no existe'}), 500
+        rows = sheet.get_all_values()
+        for idx, r in enumerate(rows[1:], start=2):
+            if len(r) > 0 and r[0].lower() == email:
+                if len(r) < 6: r += [''] * (6 - len(r))
+                estado, p_hash = r[3], r[4]
+                if estado != 'Aprobado':
+                    return jsonify({'error': 'Usuario en espera de aprobación.'}), 403
+                if check_password_hash(p_hash, password):
+                    token = str(uuid.uuid4())
+                    sheet.update_cell(idx, 6, token)
+                    # Use lowername if applicable
+                    lowername = r[1].lower()
+                    if 'ignacio' in lowername: user_key = 'ignacio'
+                    elif 'robinson' in lowername: user_key = 'robinson'
+                    else: user_key = 'callcenter'
+                    
+                    user_obj = {'email': email, 'name': r[1], 'role': r[2], 'user_key': user_key}
+                    VALID_TOKENS[token] = user_obj
+                    return jsonify({'token': token, 'user': user_obj})
+                else:
+                    return jsonify({'error': 'Contraseña incorrecta'}), 401
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    data = request.json
+    email = data.get('email', '').strip().lower()
+    name = data.get('name', '').strip()
+    password = data.get('password', '')
+    if not email or not name or not password:
+        return jsonify({'error': 'Datos incompletos'}), 400
+    try:
+        client = get_gspread_client()
+        sheet = client.open_by_key(SHEET_ID).worksheet('Usuarios')
+        for r in sheet.get_all_values()[1:]:
+            if len(r) > 0 and r[0].lower() == email:
+                return jsonify({'error': 'Correo ya registrado'}), 400
+        
+        sheet.append_row([email, name, 'Ingreso de consultas', 'Pendiente', generate_password_hash(password), ''])
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/pending', methods=['GET'])
+@require_auth
 def get_pending():
     try:
         user = request.args.get('user', '').lower()
+        if not user:
+            user = request.user_obj.get('user_key', '')
         if user not in USER_CONFIG:
             return jsonify({"error": "Usuario no válido. Usa ?user=ignacio o ?user=robinson"}), 400
 
@@ -167,9 +263,12 @@ def get_pending():
 
 
 @app.route('/api/history', methods=['GET'])
+@require_auth
 def get_history():
     try:
         user = request.args.get('user', '').lower()
+        if not user:
+            user = request.user_obj.get('user_key', '')
         if user not in USER_CONFIG:
             return jsonify({"error": "Usuario no válido"}), 400
 
@@ -224,7 +323,7 @@ def get_history():
 
         # Most recent first (highest row index = bottom of sheet = newest)
         history.reverse()
-        return jsonify(history[:200])  # cap at 200 items
+        return jsonify(history)
 
     except Exception as e:
         print(traceback.format_exc())
@@ -232,7 +331,8 @@ def get_history():
 
 
 @app.route('/api/consultations', methods=['GET'])
-def search_consultations():
+@require_auth
+def consultations():
     try:
         q = request.args.get('q', '').strip().lower()
         if len(q) < 2:
@@ -289,6 +389,7 @@ def search_consultations():
 
 
 @app.route('/api/update-foto', methods=['POST'])
+@require_auth
 def update_foto():
     try:
         data    = request.json
@@ -346,6 +447,7 @@ def update_foto():
 
 
 @app.route('/api/foto-events', methods=['GET'])
+@require_auth
 def foto_events():
     since = request.args.get('since', type=int, default=0)
     new_events = [e for e in recent_foto_events if e['ts'] > since]
@@ -353,6 +455,7 @@ def foto_events():
 
 
 @app.route('/api/resp-events', methods=['GET'])
+@require_auth
 def resp_events():
     since = request.args.get('since', type=int, default=0)
     new_events = [e for e in recent_resp_events if e['ts'] > since]
@@ -360,6 +463,7 @@ def resp_events():
 
 
 @app.route('/api/recent-folios', methods=['GET'])
+@require_auth
 def recent_folios():
     try:
         client   = get_gspread_client()
@@ -408,6 +512,7 @@ def recent_folios():
 
 
 @app.route('/api/update', methods=['POST'])
+@require_auth
 def update_row():
     try:
         data         = request.json
@@ -415,7 +520,10 @@ def update_row():
         status       = data.get('status', '')
         response_text= data.get('response', '')
         link         = data.get('link', '')
+        
         user         = data.get('user', '').lower()
+        if not user:
+            user = request.user_obj.get('user_key', '')
 
         if user not in USER_CONFIG:
             return jsonify({"error": "Usuario no válido"}), 400

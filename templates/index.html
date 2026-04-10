@@ -15,36 +15,37 @@
 <body>
 
     <!-- ===== USER SELECTION SCREEN ===== -->
-    <div id="user-select-screen" class="user-select-screen">
-        <div class="user-select-content">
-            <div class="user-select-logo">
-                <i class="fas fa-boxes-stacked"></i>
+    <div id="auth-screen" class="user-select-screen">
+        <div class="user-select-container">
+            <h1 style="font-size:1.6rem; font-weight:800; color:var(--text); margin-bottom:0.2rem; text-align:center;">Acceso Seguro</h1>
+            <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.5rem; text-align:center;">Ingresa tus credenciales para continuar</p>
+            
+            <div id="login-form">
+                <input type="email" id="auth-email" class="cc-search-input" style="width:100%; margin-bottom:10px; border-radius:12px; font-size:0.95rem; padding:0.8rem 1rem; border:1px solid var(--border); box-sizing:border-box;" placeholder="Correo electrónico" />
+                <input type="password" id="auth-pass" class="cc-search-input" style="width:100%; margin-bottom:15px; border-radius:12px; font-size:0.95rem; padding:0.8rem 1rem; border:1px solid var(--border); box-sizing:border-box;" placeholder="Contraseña" />
+                
+                <button class="submit-btn" style="width:100%; justify-content:center; padding:0.8rem;" onclick="handleLogin()">
+                    <i class="fas fa-sign-in-alt"></i> Ingresar
+                </button>
+                <div style="text-align:center; margin-top:15px;">
+                    <a href="#" onclick="toggleAuthMode()" style="color:var(--primary); font-size:0.85rem; text-decoration:none; font-weight:600;">Solicitar acceso</a>
+                </div>
             </div>
-            <h1>Stock Voice</h1>
-            <p class="user-select-subtitle">¿Quién accede?</p>
-            <div class="user-cards">
-                <button class="user-card user-card--ignacio" id="btn-ignacio" onclick="selectUser('ignacio')">
-                    <div class="user-card-icon"><i class="fas fa-user-tie"></i></div>
-                    <div>
-                        <div class="user-card-name">Ignacio Castañeda</div>
-                        <div class="user-card-role">La Reina — Responder consultas</div>
-                    </div>
+
+            <div id="register-form" style="display:none;">
+                <input type="text" id="reg-name" class="cc-search-input" style="width:100%; margin-bottom:10px; border-radius:12px; font-size:0.95rem; padding:0.8rem 1rem; border:1px solid var(--border); box-sizing:border-box;" placeholder="Nombre completo" />
+                <input type="email" id="reg-email" class="cc-search-input" style="width:100%; margin-bottom:10px; border-radius:12px; font-size:0.95rem; padding:0.8rem 1rem; border:1px solid var(--border); box-sizing:border-box;" placeholder="Correo electrónico" />
+                <input type="password" id="reg-pass" class="cc-search-input" style="width:100%; margin-bottom:15px; border-radius:12px; font-size:0.95rem; padding:0.8rem 1rem; border:1px solid var(--border); box-sizing:border-box;" placeholder="Crea tu contraseña" />
+                
+                <button class="submit-btn" style="width:100%; justify-content:center; padding:0.8rem;" onclick="handleRegister()">
+                    <i class="fas fa-user-plus"></i> Enviar solicitud
                 </button>
-                <button class="user-card user-card--robinson" id="btn-robinson" onclick="selectUser('robinson')">
-                    <div class="user-card-icon"><i class="fas fa-user"></i></div>
-                    <div>
-                        <div class="user-card-name">Robinson</div>
-                        <div class="user-card-role">Externo — Responder consultas</div>
-                    </div>
-                </button>
-                <button class="user-card user-card--callcenter" id="btn-callcenter" onclick="selectUser('callcenter')">
-                    <div class="user-card-icon"><i class="fas fa-headset"></i></div>
-                    <div>
-                        <div class="user-card-name">Call Center</div>
-                        <div class="user-card-role">Subir fotos a consultas</div>
-                    </div>
-                </button>
+                <div style="text-align:center; margin-top:15px;">
+                    <a href="#" onclick="toggleAuthMode()" style="color:var(--text-muted); font-size:0.85rem; text-decoration:none; font-weight:600;">Volver al inicio de sesión</a>
+                </div>
             </div>
+            
+            <div id="auth-status" style="margin-top:10px; font-size:0.85rem; text-align:center;"></div>
         </div>
     </div>
 

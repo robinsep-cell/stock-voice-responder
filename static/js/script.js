@@ -68,31 +68,124 @@ if (SpeechRecognition) {
 }
 
 // =============================================
-// USER SELECTION
+// AUTHENTICATION & OVERRIDES
 // =============================================
-window.selectUser = function(user) {
-    currentUser = user;
-    localStorage.setItem('stockvoice_user', user);
-    if (user === 'callcenter') {
-        showCCScreen();
+let stockvoice_token = localStorage.getItem('stockvoice_token') || null;
+
+const originalFetch = window.fetch;
+window.fetch = async function() {
+    const args = Array.prototype.slice.call(arguments);
+    const url = args[0];
+    const options = args[1] || {};
+    
+    if (typeof url === 'string' && url.startsWith('/api/')) {
+        options.headers = options.headers || {};
+        if (stockvoice_token) {
+            options.headers['Authorization'] = `Bearer ${stockvoice_token}`;
+            if (!options.headers['Content-Type'] && options.method && options.method.toUpperCase() !== 'GET') {
+                options.headers['Content-Type'] = 'application/json';
+            }
+        }
+        args[1] = options;
+        
+        const res = await originalFetch.apply(window, args);
+        if (res.status === 401 || res.status === 403) {
+            window.logout();
+        }
+        return res;
+    }
+    return originalFetch.apply(window, args);
+};
+
+window.toggleAuthMode = function() {
+    const l = document.getElementById('login-form');
+    const r = document.getElementById('register-form');
+    const s = document.getElementById('auth-status');
+    s.innerHTML = '';
+    if (l.style.display === 'none') {
+        l.style.display = 'block';
+        r.style.display = 'none';
     } else {
-        showMainApp();
-        fetchConsultations().then(() => {
-            lastKnownCount = consultations.length;
-            requestNotificationPermission();
-            startPolling();
-        });
+        l.style.display = 'none';
+        r.style.display = 'block';
     }
 };
 
-window.changeUser = function() {
+window.handleLogin = async function() {
+    const email = document.getElementById('auth-email').value;
+    const password = document.getElementById('auth-pass').value;
+    const status = document.getElementById('auth-status');
+    if (!email || !password) return;
+    status.innerHTML = 'Ingresando...';
+    try {
+        const res = await originalFetch('/api/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email, password})
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        
+        stockvoice_token = data.token;
+        localStorage.setItem('stockvoice_token', stockvoice_token);
+        
+        const userKey = data.user.user_key; 
+        currentUser = userKey;
+        localStorage.setItem('stockvoice_user', userKey);
+        localStorage.setItem('stockvoice_realname', data.user.name);
+        status.innerHTML = '';
+        
+        if (userKey === 'callcenter') {
+            showCCScreen();
+        } else {
+            showMainApp();
+            fetchConsultations().then(() => {
+                lastKnownCount = consultations.length;
+                requestNotificationPermission();
+                startPolling();
+            });
+        }
+    } catch(err) {
+        status.innerHTML = `<span style="color:var(--danger)">${err.message}</span>`;
+    }
+}
+
+window.handleRegister = async function() {
+    const email = document.getElementById('reg-email').value;
+    const name = document.getElementById('reg-name').value;
+    const password = document.getElementById('reg-pass').value;
+    const status = document.getElementById('auth-status');
+    if (!email || !password || !name) return;
+    status.innerHTML = 'Enviando...';
+    try {
+        const res = await originalFetch('/api/register', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email, name, password})
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        status.innerHTML = `<span style="color:var(--primary)">Solicitud enviada. Espera aprobación antes de ingresar.</span>`;
+        setTimeout(() => toggleAuthMode(), 3000);
+    } catch(err) {
+        status.innerHTML = `<span style="color:var(--danger)">${err.message}</span>`;
+    }
+}
+
+window.logout = function() {
     currentUser = null;
+    stockvoice_token = null;
+    localStorage.removeItem('stockvoice_user');
+    localStorage.removeItem('stockvoice_token');
+    localStorage.removeItem('stockvoice_realname');
     if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
     document.getElementById('main-app').style.display      = 'none';
     document.getElementById('history-screen').style.display = 'none';
     document.getElementById('cc-screen').style.display      = 'none';
     userSelectScreen.style.display = 'flex';
 };
+
+window.changeUser = window.logout;
 
 function showMainApp() {
     userSelectScreen.style.display = 'none';
@@ -1020,16 +1113,28 @@ refreshBtn.addEventListener('click', fetchConsultations);
 
 window.addEventListener('load', () => {
     const savedUser = localStorage.getItem('stockvoice_user');
-    if (savedUser && USER_DISPLAY[savedUser]) {
+    const token = localStorage.getItem('stockvoice_token');
+    if (savedUser && token && USER_DISPLAY[savedUser]) {
         currentUser = savedUser;
-        showMainApp();
-        fetchConsultations().then(() => {
-            lastKnownCount = consultations.length;
-            requestNotificationPermission();
-            startPolling();
-        });
+        stockvoice_token = token;
+        
+        if (currentUser === 'callcenter') {
+            showCCScreen();
+        } else {
+            showMainApp();
+            fetchConsultations().then(() => {
+                lastKnownCount = consultations.length;
+                requestNotificationPermission();
+                startPolling();
+            }).catch(e => {
+                console.error("Login verification failed", e);
+                window.logout();
+            });
+        }
     } else {
         userSelectScreen.style.display = 'flex';
         mainApp.style.display = 'none';
+        document.getElementById('cc-screen').style.display = 'none';
+        document.getElementById('history-screen').style.display = 'none';
     }
 });
