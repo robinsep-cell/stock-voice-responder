@@ -639,5 +639,6 @@ header {
 }
 .rfc-dot--blue { background: var(--ignacio); }
 .rfc-dot--green { background: var(--robinson); }
+.rfc-dot--red { background: var(--danger); }
 .rfc-dot--empty { background: var(--border); }
 

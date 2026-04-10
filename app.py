@@ -295,6 +295,12 @@ def update_foto():
                 return jsonify({'error': 'Límite de 6 fotos alcanzado.'}), 400
                 
             sheet.update_cell(row_idx, target_col, url)
+            
+            # Clear user statuses so the folio goes back to Pending for both
+            sheet.update_cell(row_idx, COL_IGNACIO_STATUS, '')
+            sheet.update_cell(row_idx, COL_IGNACIO_RESP, '')
+            sheet.update_cell(row_idx, COL_ROBINSON_STATUS, '')
+            sheet.update_cell(row_idx, COL_ROBINSON_RESP, '')
 
         # Record event so respondents can be notified
         recent_foto_events.append({

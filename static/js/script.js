@@ -122,6 +122,16 @@ async function fetchConsultations() {
 
         const cfg = USER_DISPLAY[currentUser];
         headerSubtitle.textContent = `${consultations.length} pendiente${consultations.length !== 1 ? 's' : ''} — ${cfg.role}`;
+
+        // Also fetch recent folios to show below
+        if (currentUser !== 'callcenter') {
+            fetch('/api/recent-folios').then(r => r.json()).then(rfData => {
+                const rfDiv = document.getElementById('pending-recent-folios');
+                if (rfDiv && !rfData.error) {
+                    rfDiv.innerHTML = getRecentFoliosHTML(rfData);
+                }
+            }).catch(console.error);
+        }
     } catch (err) {
         console.error('Error:', err);
         container.innerHTML = `<p style="text-align:center; color:var(--danger); padding:2rem;">Error al cargar datos.<br><small>${err.message}</small></p>`;
@@ -142,7 +152,8 @@ function renderCards() {
                 <i class="fas fa-check-circle"></i>
                 <h2>¡Todo al día!</h2>
                 <p>No hay consultas pendientes en este momento.</p>
-            </div>`;
+            </div>
+            <div id="pending-recent-folios"></div>`;
         return;
     }
 
@@ -252,7 +263,7 @@ function renderCards() {
                 </button>
             </div>
         </div>`;
-    }).join('');
+    }).join('') + `<div id="pending-recent-folios"></div>`;
 
     selectedStatuses = {};
 }
@@ -408,24 +419,47 @@ async function fetchRecentFolios() {
     }
 }
 
-function renderRecentFolios(items) {
-    if (!items.length) {
-        ccResults.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.88rem;">No hay folios recientes</p>';
-        return;
+function getRecentFoliosHTML(items) {
+    if (!items || !items.length) {
+        return '<p style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.88rem;">No hay folios recientes</p>';
     }
-    const header = `<p style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.7rem;">Folios recientes</p>`;
-    const grid   = `<div class="recent-folios-grid">
-        ${items.map((item, idx) => `
-        <button class="recent-folio-chip" onclick="showSingleFolio(${JSON.stringify(item).replace(/"/g, '&quot;')}, ${idx})">
-            <span class="rfc-folio">${item.folio}</span>
-            <span class="rfc-product">${(item.producto || '').slice(0, 28)}</span>
-            <div class="rfc-status">
-                ${item.la_reina ? `<span class="rfc-dot rfc-dot--blue"></span>` : `<span class="rfc-dot rfc-dot--empty"></span>`}
-                ${item.externo  ? `<span class="rfc-dot rfc-dot--green"></span>` : `<span class="rfc-dot rfc-dot--empty"></span>`}
-            </div>
-        </button>`).join('')}
+    const header = `<p style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.7rem;margin-top:2rem;">Folios recientes rápidos</p>`;
+    const grid   = `<div class="recent-folios-grid" style="padding-bottom:2rem;">
+        ${items.map((item, idx) => {
+            const hasPhoto = (item.fotos || []).some(isValidFotoUrl);
+            const hasAnswer = !!(item.la_reina || item.externo);
+            const isCC = currentUser === 'callcenter';
+            const clickAction = isCC
+                ? `showSingleFolio(${JSON.stringify(item).replace(/"/g, '&quot;')}, ${idx})`
+                : `openHistoryForFolio('${item.folio}')`;
+            
+            return `
+            <button class="recent-folio-chip" onclick="${clickAction}">
+                <span class="rfc-folio">${item.folio}</span>
+                <span class="rfc-product">${(item.producto || '').slice(0, 28)}</span>
+                <div class="rfc-status">
+                    ${hasPhoto ? `<span class="rfc-dot rfc-dot--green" title="Con foto"></span>` : `<span class="rfc-dot rfc-dot--empty" title="Sin foto"></span>`}
+                    ${hasAnswer ? `<span class="rfc-dot rfc-dot--green" title="Con respuesta"></span>` : `<span class="rfc-dot rfc-dot--red" title="Sin respuesta"></span>`}
+                </div>
+            </button>`;
+        }).join('')}
     </div>`;
-    ccResults.innerHTML = header + grid;
+    return header + grid;
+}
+
+window.openHistoryForFolio = function(folio) {
+    showHistory();
+    setTimeout(() => {
+        const hSearch = document.getElementById('history-search');
+        if (hSearch) {
+            hSearch.value = folio;
+            hSearch.dispatchEvent(new Event('input'));
+        }
+    }, 600); // Give API enough time to load History
+};
+
+function renderRecentFolios(items) {
+    ccResults.innerHTML = getRecentFoliosHTML(items);
 }
 
 window.showSingleFolio = function(item, idx) {
