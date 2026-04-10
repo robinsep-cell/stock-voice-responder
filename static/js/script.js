@@ -497,10 +497,16 @@ function renderCCResults(items) {
                 <a href="${item.foto}" target="_blank" class="foto-preview-btn" style="margin-bottom:0.75rem;display:inline-flex;">
                     <i class="fas fa-image"></i> Ver foto actual
                 </a>` : ''}
-            <button class="cc-upload-btn" onclick="triggerFotoUpload(${item.row_index}, ${idx}, '${(item.folio||'').replace(/'/g,'')}', '${(item.producto||'').replace(/'/g,'').replace(/`/g,'')}')">
-                <i class="fas fa-camera"></i>
-                ${isValidFotoUrl(item.foto) ? 'Reemplazar foto' : 'Subir foto'}
-            </button>
+            <div style="display:flex; gap:0.5rem;">
+                <button class="cc-upload-btn" onclick="triggerFotoUpload(${item.row_index}, ${idx}, '${(item.folio||'').replace(/'/g,'')}', '${(item.producto||'').replace(/'/g,'').replace(/`/g,'')}')" style="flex:1;">
+                    <i class="fas fa-camera"></i>
+                    ${isValidFotoUrl(item.foto) ? 'Reemplazar foto' : 'Subir foto'}
+                </button>
+                ${isValidFotoUrl(item.foto) ? `
+                <button class="cc-upload-btn" style="flex:0.25; background:rgba(255,59,48,0.1); border-color:rgba(255,59,48,0.3); color:var(--danger);" onclick="deleteFoto(${item.row_index}, ${idx}, '${(item.folio||'').replace(/'/g,'')}', '${(item.producto||'').replace(/'/g,'').replace(/`/g,'')}')" title="Eliminar foto">
+                    <i class="fas fa-trash-alt"></i>
+                </button>` : ''}
+            </div>
             <div id="cc-status-${idx}" class="cc-upload-status"></div>
         </div>
     `).join('');
@@ -554,11 +560,55 @@ window.handleFotoSelected = async function(event) {
         const saveData = await saveRes.json();
         if (!saveData.success) throw new Error(saveData.error);
 
-        statusDiv.innerHTML = `✅ Foto subida. <a href="${fotoUrl}" target="_blank" style="color:var(--callcenter);">Ver foto</a>`;
-        if (btn) { btn.innerHTML = '<i class="fas fa-camera"></i> Reemplazar foto'; btn.disabled = false; }
+        statusDiv.innerHTML = '<span style="color:var(--success);"><i class="fas fa-check"></i> Foto subida correctamente</span>';
+        
+        // Refresh active list smoothly after short delay
+        setTimeout(() => {
+            const currentSearch = document.getElementById('cc-search').value;
+            if (currentSearch.length >= 2) searchConsultations(currentSearch);
+            else fetchRecentFolios();
+        }, 1200);
+
     } catch(err) {
         statusDiv.innerHTML = `<span style="color:var(--danger);">❌ ${err.message}</span>`;
         if (btn) { btn.disabled = false; }
+    }
+};
+
+window.deleteFoto = async function(rowIndex, cardIdx, folio, producto) {
+    if (!confirm('¿Estás seguro de que deseas eliminar la fotografía adjunta?')) return;
+    
+    const statusDiv = document.getElementById(`cc-status-${cardIdx}`);
+    const btns      = document.querySelectorAll(`#cc-card-${cardIdx} .cc-upload-btn`);
+    
+    statusDiv.innerHTML = '<div class="loader" style="display:inline-block;width:18px;height:18px;border-width:2px;margin-right:6px;"></div> Eliminando foto...';
+    btns.forEach(b => b.disabled = true);
+
+    try {
+        const saveRes  = await fetch('/api/update-foto', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                row_index: rowIndex,
+                foto_url:  '',
+                folio:     folio,
+                producto:  producto,
+            }),
+        });
+        const saveData = await saveRes.json();
+        if (!saveData.success) throw new Error(saveData.error);
+
+        statusDiv.innerHTML = '<span style="color:var(--success);"><i class="fas fa-check"></i> Foto eliminada correctamente</span>';
+        
+        setTimeout(() => {
+            const currentSearch = document.getElementById('cc-search').value;
+            if (currentSearch.length >= 2) searchConsultations(currentSearch);
+            else fetchRecentFolios();
+        }, 1200);
+
+    } catch(err) {
+        statusDiv.innerHTML = `<span style="color:var(--danger);">Error: ${err.message}</span>`;
+        btns.forEach(b => b.disabled = false);
     }
 };
 
