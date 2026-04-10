@@ -35,7 +35,7 @@ COL_ROBINSON_RESP   = 14  # N
 
 # Shared
 COL_LINK = 15  # O
-COL_FOTO = 9   # I
+COLS_FOTOS = [16, 17, 18, 19, 20, 21]  # P, Q, R, S, T, U
 
 USER_CONFIG = {
     'ignacio': {
@@ -136,7 +136,7 @@ def get_pending():
                     "caracteristicas":safe_get(row, COL_CARACT),
                     "lado":           safe_get(row, COL_LADO),
                     "marca_modelo_año": vehiculo,
-                    "foto":           safe_get(row, COL_FOTO),
+                    "fotos":          [safe_get(row, c) for c in COLS_FOTOS],
                     "link":           safe_get(row, COL_LINK),
                     "other_user":     cfg['other_name'],
                     "other_status":   other_status,
@@ -169,7 +169,7 @@ def get_history():
         rc  = cfg['resp_col']
         osc = cfg['other_status_col']
         orc = cfg['other_resp_col']
-        max_col = max(sc, rc, osc, orc, COL_LINK)
+        max_col = max(sc, rc, osc, orc, COL_LINK, max(COLS_FOTOS))
 
         client = get_gspread_client()
         sheet  = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
@@ -199,7 +199,7 @@ def get_history():
                     "marca_modelo_año": safe_get(row, COL_VEHICULO),
                     "my_status":        my_status,
                     "my_resp":          my_resp,
-                    "foto":             safe_get(row, COL_FOTO),
+                    "fotos":            [safe_get(row, c) for c in COLS_FOTOS],
                     "link":             safe_get(row, COL_LINK),
                     "other_user":       cfg['other_name'],
                     "other_status":     safe_get(row, osc),
@@ -228,7 +228,7 @@ def search_consultations():
 
         results = []
         for idx, row in enumerate(all_rows[1:], start=2):
-            padded = row + [''] * 20
+            padded = row + [''] * 25
             folio    = safe_get(padded, COL_FOLIO)
             producto = safe_get(padded, COL_PRODUCTO)
             vehiculo = safe_get(padded, COL_VEHICULO)
@@ -247,7 +247,7 @@ def search_consultations():
                 'caracteristicas':  safe_get(padded, COL_CARACT),
                 'lado':             safe_get(padded, COL_LADO),
                 'marca_modelo_año': vehiculo,
-                'foto':             safe_get(padded, COL_FOTO),
+                'fotos':            [safe_get(padded, c) for c in COLS_FOTOS],
                 'la_reina':         safe_get(padded, COL_IGNACIO_STATUS),
                 'la_reina_resp':    safe_get(padded, COL_IGNACIO_RESP),
                 'externo':          safe_get(padded, COL_ROBINSON_STATUS),
@@ -270,10 +270,31 @@ def update_foto():
         url     = data.get('foto_url', '')
         folio   = data.get('folio', '')
         producto= data.get('producto', '')
+        foto_idx= data.get('foto_index', None) # 0 to 5 if deleting
 
         client = get_gspread_client()
         sheet  = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
-        sheet.update_cell(row_idx, COL_FOTO, url)
+
+        if url == '' and foto_idx is not None:
+            # We are deleting a specific photo
+            target_col = COLS_FOTOS[int(foto_idx)]
+            sheet.update_cell(row_idx, target_col, '')
+        else:
+            # We are adding a photo, find the first empty column
+            row_data = sheet.row_values(row_idx)
+            # pad to at least 21 items to avoid index errors
+            padded = row_data + [''] * max(0, 22 - len(row_data))
+            
+            target_col = None
+            for c in COLS_FOTOS:
+                if not safe_get(padded, c):
+                    target_col = c
+                    break
+            
+            if not target_col:
+                return jsonify({'error': 'Límite de 6 fotos alcanzado.'}), 400
+                
+            sheet.update_cell(row_idx, target_col, url)
 
         # Record event so respondents can be notified
         recent_foto_events.append({
@@ -323,7 +344,7 @@ def recent_folios():
                 'caracteristicas':  safe_get(padded, COL_CARACT),
                 'lado':             safe_get(padded, COL_LADO),
                 'marca_modelo_año': safe_get(padded, COL_VEHICULO),
-                'foto':             safe_get(padded, COL_FOTO),
+                'fotos':            [safe_get(padded, c) for c in COLS_FOTOS],
                 'la_reina':         safe_get(padded, COL_IGNACIO_STATUS),
                 'la_reina_resp':    safe_get(padded, COL_IGNACIO_RESP),
                 'externo':          safe_get(padded, COL_ROBINSON_STATUS),

@@ -211,10 +211,13 @@ function renderCards() {
                 </div>
             </div>
 
-            ${isValidFotoUrl(item.foto) ? `
-            <a href="${item.foto}" target="_blank" class="foto-preview-btn">
-                <i class="fas fa-image"></i> Ver foto adjunta
-            </a>` : ''}
+            ${(item.fotos || []).filter(isValidFotoUrl).length > 0 ? `
+            <div class="fotos-gallery" style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+                ${(item.fotos || []).map((url, i) => isValidFotoUrl(url) ? `
+                <a href="${url}" target="_blank" class="foto-preview-btn" style="margin-bottom:0;">
+                    <i class="fas fa-image"></i> Foto ${i+1}
+                </a>` : '').join('')}
+            </div>` : ''}
 
             ${otherBlock}
             ${dupBlock}
@@ -493,19 +496,31 @@ function renderCCResults(items) {
                 </div>` : ''}
             </div>` : '<p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem;">Sin respuesta aún</p>'}
 
-            ${isValidFotoUrl(item.foto) ? `
-                <a href="${item.foto}" target="_blank" class="foto-preview-btn" style="margin-bottom:0.75rem;display:inline-flex;">
-                    <i class="fas fa-image"></i> Ver foto actual
-                </a>` : ''}
-            <div style="display:flex; gap:0.5rem;">
+            ${(function(){
+                const validFotos = (item.fotos || []).map((url, i) => ({url, i})).filter(f => isValidFotoUrl(f.url));
+                if (validFotos.length > 0) {
+                    return `
+                    <div class="cc-fotos-grid" style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+                        ${validFotos.map((f, arrayIdx) => `
+                            <div class="foto-thumb-wrapper" style="display:flex; align-items:stretch; gap:0.2rem; min-width:130px; flex:1; background:var(--primary-dim); border:1px solid rgba(0,113,227,0.15); border-radius:var(--radius-sm); padding:2px;">
+                                <a href="${f.url}" target="_blank" class="foto-preview-btn" style="margin-bottom:0; flex:1; justify-content:center; background:transparent; border:none; padding:0.4rem;">
+                                    <i class="fas fa-image"></i> Foto ${arrayIdx+1}
+                                </a>
+                                <button class="delete-foto-btn" onclick="deleteFoto(${item.row_index}, ${f.i}, ${idx}, '${(item.folio||'').replace(/'/g,'')}', '${(item.producto||'').replace(/'/g,'').replace(/`/g,'')}')" title="Eliminar foto" style="background:rgba(255,59,48,0.1); border:none; color:var(--danger); border-radius:8px; width:34px; cursor:pointer;">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>`;
+                }
+                return '';
+            })()}
+
+            <div style="display:flex; gap:0.5rem; margin-top:0.75rem;">
+                ${(item.fotos || []).filter(isValidFotoUrl).length < 6 ? `
                 <button class="cc-upload-btn" onclick="triggerFotoUpload(${item.row_index}, ${idx}, '${(item.folio||'').replace(/'/g,'')}', '${(item.producto||'').replace(/'/g,'').replace(/`/g,'')}')" style="flex:1;">
-                    <i class="fas fa-camera"></i>
-                    ${isValidFotoUrl(item.foto) ? 'Reemplazar foto' : 'Subir foto'}
-                </button>
-                ${isValidFotoUrl(item.foto) ? `
-                <button class="cc-upload-btn" style="flex:0.25; background:rgba(255,59,48,0.1); border-color:rgba(255,59,48,0.3); color:var(--danger);" onclick="deleteFoto(${item.row_index}, ${idx}, '${(item.folio||'').replace(/'/g,'')}', '${(item.producto||'').replace(/'/g,'').replace(/`/g,'')}')" title="Eliminar foto">
-                    <i class="fas fa-trash-alt"></i>
-                </button>` : ''}
+                    <i class="fas fa-camera"></i> Subir foto
+                </button>` : `<p style="font-size:0.8rem; color:var(--text-muted); width:100%; text-align:center; padding:0.5rem 0;"><i class="fas fa-info-circle"></i> Límite de 6 fotos alcanzado.</p>`}
             </div>
             <div id="cc-status-${idx}" class="cc-upload-status"></div>
         </div>
@@ -575,11 +590,11 @@ window.handleFotoSelected = async function(event) {
     }
 };
 
-window.deleteFoto = async function(rowIndex, cardIdx, folio, producto) {
-    if (!confirm('¿Estás seguro de que deseas eliminar la fotografía adjunta?')) return;
+window.deleteFoto = async function(rowIndex, fotoIdx, cardIdx, folio, producto) {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta fotografía adjunta?')) return;
     
     const statusDiv = document.getElementById(`cc-status-${cardIdx}`);
-    const btns      = document.querySelectorAll(`#cc-card-${cardIdx} .cc-upload-btn`);
+    const btns      = document.querySelectorAll(`#cc-card-${cardIdx} button`);
     
     statusDiv.innerHTML = '<div class="loader" style="display:inline-block;width:18px;height:18px;border-width:2px;margin-right:6px;"></div> Eliminando foto...';
     btns.forEach(b => b.disabled = true);
@@ -591,6 +606,7 @@ window.deleteFoto = async function(rowIndex, cardIdx, folio, producto) {
             body: JSON.stringify({
                 row_index: rowIndex,
                 foto_url:  '',
+                foto_index: fotoIdx,
                 folio:     folio,
                 producto:  producto,
             }),
@@ -754,8 +770,13 @@ function renderHistoryCard(item, idx) {
     const linkBtn = item.link && !isEditing
         ? `<a href="${item.link}" target="_blank" class="link-pill"><i class="fas fa-link"></i> Ver link</a>` : '';
 
-    const fotoBtn = isValidFotoUrl(item.foto) && !isEditing
-        ? `<a href="${item.foto}" target="_blank" class="foto-preview-btn"><i class="fas fa-image"></i> Ver foto</a>` : '';
+    const validFotos = (item.fotos || []).filter(isValidFotoUrl);
+    const fotosBtn = validFotos.length > 0 && !isEditing ? `
+        <div class="history-fotos-gallery" style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.5rem; width:100%;">
+            ${validFotos.map((url, i) => `
+                <a href="${url}" target="_blank" class="foto-preview-btn" style="margin-bottom:0;"><i class="fas fa-image"></i> Foto ${i+1}</a>
+            `).join('')}
+        </div>` : '';
 
     return `
     <div class="history-card" id="hcard-${idx}"
@@ -777,7 +798,7 @@ function renderHistoryCard(item, idx) {
             <span class="status-pill ${statusClass}">${item.my_status}</span>
             ${item.my_resp ? `<span class="history-resp-text">${item.my_resp}</span>` : ''}
             ${linkBtn}
-            ${fotoBtn}
+            ${fotosBtn}
         </div>
 
         ${otherBlock}
