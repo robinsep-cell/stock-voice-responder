@@ -117,6 +117,14 @@ def get_pending():
             producto    = safe_get(row, COL_PRODUCTO)
             vehiculo    = safe_get(row, COL_VEHICULO)
 
+            # A question is only valid if D, E, G, and H are complete
+            is_valid = bool(
+                safe_get(row, COL_EJECUTIVO).strip() and
+                safe_get(row, COL_PRODUCTO).strip() and
+                safe_get(row, COL_LADO).strip() and
+                safe_get(row, COL_VEHICULO).strip()
+            )
+
             # Already answered by me → skip but cache for duplicate detection
             if my_status or my_resp:
                 key = (producto.lower(), vehiculo.lower())
@@ -127,7 +135,7 @@ def get_pending():
                 continue
 
             # Pending for me
-            if not my_status and not my_resp and producto:
+            if not my_status and not my_resp and is_valid:
                 pending.append({
                     "row_index":      idx,
                     "folio":          safe_get(row, COL_FOLIO),
@@ -187,8 +195,15 @@ def get_history():
             my_resp   = safe_get(row, rc)
             producto  = safe_get(row, COL_PRODUCTO)
 
+            is_valid = bool(
+                safe_get(row, COL_EJECUTIVO).strip() and
+                safe_get(row, COL_PRODUCTO).strip() and
+                safe_get(row, COL_LADO).strip() and
+                safe_get(row, COL_VEHICULO).strip()
+            )
+
             # Only rows I have answered
-            if (my_status or my_resp) and producto:
+            if (my_status or my_resp) and is_valid:
                 history.append({
                     "row_index":        idx,
                     "folio":            safe_get(row, COL_FOLIO),
@@ -234,6 +249,16 @@ def search_consultations():
             producto = safe_get(padded, COL_PRODUCTO)
             vehiculo = safe_get(padded, COL_VEHICULO)
             ejecutivo= safe_get(padded, COL_EJECUTIVO)
+
+            is_valid = bool(
+                safe_get(padded, COL_EJECUTIVO).strip() and
+                safe_get(padded, COL_PRODUCTO).strip() and
+                safe_get(padded, COL_LADO).strip() and
+                safe_get(padded, COL_VEHICULO).strip()
+            )
+
+            if not is_valid:
+                continue
 
             if not (q in folio.lower() or q in producto.lower()
                     or q in vehiculo.lower() or q in ejecutivo.lower()):
@@ -347,8 +372,17 @@ def recent_folios():
             actual_idx = len(data_rows) - raw_idx + 1  # 1-based row in sheet
             padded = row + [''] * 20
             folio = safe_get(padded, COL_FOLIO)
-            if not folio:
+            
+            is_valid = bool(
+                safe_get(padded, COL_EJECUTIVO).strip() and
+                safe_get(padded, COL_PRODUCTO).strip() and
+                safe_get(padded, COL_LADO).strip() and
+                safe_get(padded, COL_VEHICULO).strip()
+            )
+
+            if not is_valid:
                 continue
+                
             results.append({
                 'row_index':        actual_idx,
                 'folio':            folio,
