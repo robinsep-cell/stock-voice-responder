@@ -261,8 +261,11 @@ header {
 .ejecutivo-badge {
     font-size: 0.72rem; color: var(--text-muted);
     background: var(--bg3); padding: 0.2rem 0.6rem;
-    border-radius: 20px;
+    border-radius: 20px; border: 1px solid transparent;
 }
+.ejecutivo-badge--cecilia { background: rgba(255, 45, 85, 0.1); color: #ff2d55; border-color: rgba(255,45,85,0.2); font-weight:600; }
+.ejecutivo-badge--patricio { background: rgba(255, 149, 0, 0.1); color: #ff9500; border-color: rgba(255,149,0,0.2); font-weight:600; }
+.ejecutivo-badge--ricardo { background: rgba(0, 199, 190, 0.1); color: #00c7be; border-color: rgba(0,199,190,0.2); font-weight:600; }
 
 .product-title {
     font-size: 1.2rem; font-weight: 700;

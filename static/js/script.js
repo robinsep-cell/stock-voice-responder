@@ -197,12 +197,12 @@ function renderCards() {
 
         return `
         <div class="card" id="card-${idx}" style="animation-delay: ${idx * 0.05}s">
-            <div class="card-header">
-            <div style="display:flex; flex-direction:column; gap:3px;">
+            <div class="card-header" style="margin-bottom:0.6rem;">
+            <div style="display:flex;flex-direction:column;gap:3px;">
                 <span class="badge">Folio ${item.folio || 'S/N'}</span>
                 ${item.fecha ? `<span class="fecha-badge"><i class="fas fa-calendar-alt"></i> ${item.fecha}</span>` : ''}
             </div>
-            <span class="ejecutivo-badge"><i class="fas fa-headset" style="margin-right:4px;"></i>${item.ejecutivo || '—'}</span>
+            <span class="ejecutivo-badge ${getEjecutivoClass(item.ejecutivo)}"><i class="fas fa-headset" style="margin-right:4px;"></i>${item.ejecutivo || '—'}</span>
         </div>
 
             <h2 class="product-title">${item.producto}</h2>
@@ -502,7 +502,7 @@ function renderCCResults(items) {
                     <span class="badge">Folio ${item.folio || 'S/N'}</span>
                     ${item.fecha ? `<span class="fecha-badge"><i class="fas fa-calendar-alt"></i> ${item.fecha}</span>` : ''}
                 </div>
-                <span class="ejecutivo-badge"><i class="fas fa-headset" style="margin-right:4px;"></i>${item.ejecutivo || '—'}</span>
+                <span class="ejecutivo-badge ${getEjecutivoClass(item.ejecutivo)}"><i class="fas fa-headset" style="margin-right:4px;"></i>${item.ejecutivo || '—'}</span>
             </div>
             <div style="font-weight:700;font-size:0.95rem;margin-bottom:3px;">${item.producto}</div>
             <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;">
@@ -905,6 +905,15 @@ window.saveHistoryEdit = async function(idx, rowIndex) {
 let pollInterval    = null;
 let lastKnownCount  = null;
 let lastFotoEventTime = Math.floor(Date.now() / 1000);
+let lastRespEventTime = Math.floor(Date.now() / 1000);
+
+function getEjecutivoClass(name) {
+    const n = (name || '').toLowerCase();
+    if (n.includes('cecilia')) return 'ejecutivo-badge--cecilia';
+    if (n.includes('patricio')) return 'ejecutivo-badge--patricio';
+    if (n.includes('ricardo')) return 'ejecutivo-badge--ricardo';
+    return '';
+}
 
 function requestNotificationPermission() {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -942,39 +951,64 @@ function fireNotification(newItems) {
 
 async function autoPoll() {
     if (!currentUser) return;
-    try {
-        const res  = await fetch(`/api/pending?user=${currentUser}`);
-        const data = await res.json();
-        if (!Array.isArray(data)) return;
 
-        const count = data.length;
-        if (lastKnownCount !== null && count > lastKnownCount) {
-            fireNotification(count);
-            consultations = data;
-            renderCards();
-            const cfg = USER_DISPLAY[currentUser];
-            headerSubtitle.textContent = `${count} pendiente${count !== 1 ? 's' : ''} — ${cfg.role}`;
-        }
-        lastKnownCount = count;
-    } catch(_) { /* silent */ }
-
-    // Check for new foto uploads from Call Center
-    try {
-        const fRes  = await fetch(`/api/foto-events?since=${lastFotoEventTime}`);
-        const fData = await fRes.json();
-        lastFotoEventTime = Math.floor(Date.now() / 1000);
-        if (Array.isArray(fData) && fData.length > 0) {
-            fData.forEach(ev => {
-                if ('Notification' in window && Notification.permission === 'granted') {
-                    new Notification('📷 Nueva foto recibida', {
-                        body: `Folio ${ev.folio || '?'}: ${ev.producto || 'Consulta'}`,
-                        tag:  'foto-' + ev.folio,
-                        renotify: true,
-                    });
+    if (currentUser !== 'callcenter') {
+        try {
+            const res  = await fetch(`/api/pending?user=${currentUser}`);
+            const data = await res.json();
+            if (Array.isArray(data)) {
+                const count = data.length;
+                if (lastKnownCount !== null && count > lastKnownCount) {
+                    fireNotification(count);
+                    consultations = data;
+                    renderCards();
+                    const cfg = USER_DISPLAY[currentUser];
+                    headerSubtitle.textContent = `${count} pendiente${count !== 1 ? 's' : ''} — ${cfg.role}`;
                 }
-            });
-        }
-    } catch(_) { /* silent */ }
+                lastKnownCount = count;
+            }
+        } catch(_) { /* silent */ }
+
+        // Check for new foto uploads from Call Center
+        try {
+            const fRes  = await fetch(`/api/foto-events?since=${lastFotoEventTime}`);
+            const fData = await fRes.json();
+            lastFotoEventTime = Math.floor(Date.now() / 1000);
+            if (Array.isArray(fData) && fData.length > 0) {
+                fData.forEach(ev => {
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        new Notification('📷 Nueva foto recibida', {
+                            body: `Folio ${ev.folio || '?'}: ${ev.producto || 'Consulta'}`,
+                            tag:  'foto-' + ev.folio,
+                            renotify: true,
+                        });
+                    }
+                });
+            }
+        } catch(_) { /* silent */ }
+    } else {
+        // CALL CENTER events
+        try {
+            const rRes = await fetch(`/api/resp-events?since=${lastRespEventTime}`);
+            const rData = await rRes.json();
+            lastRespEventTime = Math.floor(Date.now() / 1000);
+            if (Array.isArray(rData) && rData.length > 0) {
+                rData.forEach(ev => {
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        new Notification('✅ Respuesta de ' + (ev.user || ''), {
+                            body: `Folio ${ev.folio || '?'}: ${ev.status || ''}`,
+                            tag: 'resp-' + ev.folio,
+                            renotify: true,
+                        });
+                    }
+                });
+                
+                // Refresh recent folios list smoothly
+                const currentSearch = document.getElementById('cc-search')?.value || '';
+                if (currentSearch.length < 2) fetchRecentFolios();
+            }
+        } catch(_) {}
+    }
 }
 
 function startPolling() {

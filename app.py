@@ -58,6 +58,7 @@ USER_CONFIG = {
 
 # ---- In-memory foto event log ----
 recent_foto_events = []
+recent_resp_events = []
 
 def get_gspread_client():
     scopes = ['https://www.googleapis.com/auth/spreadsheets']
@@ -321,8 +322,15 @@ def update_foto():
 
 @app.route('/api/foto-events', methods=['GET'])
 def foto_events():
-    since = float(request.args.get('since', 0))
+    since = request.args.get('since', type=int, default=0)
     new_events = [e for e in recent_foto_events if e['ts'] > since]
+    return jsonify(new_events)
+
+
+@app.route('/api/resp-events', methods=['GET'])
+def resp_events():
+    since = request.args.get('since', type=int, default=0)
+    new_events = [e for e in recent_resp_events if e['ts'] > since]
     return jsonify(new_events)
 
 
@@ -387,6 +395,17 @@ def update_row():
         sheet.update_cell(row_idx, cfg['resp_col'], response_text)
         if link:
             sheet.update_cell(row_idx, COL_LINK, link)
+
+        folio = data.get('folio', '')
+        if folio:
+            recent_resp_events.append({
+                'ts': time.time(),
+                'folio': folio,
+                'user': cfg['display_name'],
+                'status': status
+            })
+            if len(recent_resp_events) > 50:
+                recent_resp_events.pop(0)
 
         return jsonify({"success": True})
 
