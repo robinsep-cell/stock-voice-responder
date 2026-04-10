@@ -299,6 +299,45 @@ def foto_events():
     return jsonify(new_events)
 
 
+@app.route('/api/recent-folios', methods=['GET'])
+def recent_folios():
+    try:
+        client   = get_gspread_client()
+        sheet    = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+        all_rows = sheet.get_all_values()
+        data_rows = all_rows[1:]  # skip header
+
+        results = []
+        for raw_idx, row in enumerate(reversed(data_rows)):
+            actual_idx = len(data_rows) - raw_idx + 1  # 1-based row in sheet
+            padded = row + [''] * 20
+            folio = safe_get(padded, COL_FOLIO)
+            if not folio:
+                continue
+            results.append({
+                'row_index':        actual_idx,
+                'folio':            folio,
+                'fecha':            safe_get(padded, COL_FECHA),
+                'ejecutivo':        safe_get(padded, COL_EJECUTIVO),
+                'producto':         safe_get(padded, COL_PRODUCTO),
+                'caracteristicas':  safe_get(padded, COL_CARACT),
+                'lado':             safe_get(padded, COL_LADO),
+                'marca_modelo_año': safe_get(padded, COL_VEHICULO),
+                'foto':             safe_get(padded, COL_FOTO),
+                'la_reina':         safe_get(padded, COL_IGNACIO_STATUS),
+                'la_reina_resp':    safe_get(padded, COL_IGNACIO_RESP),
+                'externo':          safe_get(padded, COL_ROBINSON_STATUS),
+                'robinson_resp':    safe_get(padded, COL_ROBINSON_RESP),
+            })
+            if len(results) >= 18:
+                break
+
+        return jsonify(results)
+    except Exception as e:
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/update', methods=['POST'])
 def update_row():
     try:

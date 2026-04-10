@@ -387,9 +387,47 @@ function showCCScreen() {
     document.getElementById('history-screen').style.display = 'none';
     ccScreen.style.display          = 'block';
     document.getElementById('cc-search').value = '';
-    ccResults.innerHTML = `<p style="text-align:center;color:var(--text-muted);padding:2rem;font-size:0.9rem;">
-        Escribe al menos 2 caracteres para buscar</p>`;
+    ccResults.innerHTML = `<div style="text-align:center;padding:1.5rem;">
+        <div class="loader" style="display:inline-block;"></div></div>`;
+    // Load recent folios immediately
+    fetchRecentFolios();
 }
+
+async function fetchRecentFolios() {
+    try {
+        const res  = await fetch('/api/recent-folios');
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderRecentFolios(data);
+    } catch(err) {
+        ccResults.innerHTML = `<p style="color:var(--text-muted);text-align:center;padding:1rem;font-size:0.88rem;">
+            Escribe para buscar</p>`;
+    }
+}
+
+function renderRecentFolios(items) {
+    if (!items.length) {
+        ccResults.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.88rem;">No hay folios recientes</p>';
+        return;
+    }
+    const header = `<p style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.7rem;">Folios recientes</p>`;
+    const grid   = `<div class="recent-folios-grid">
+        ${items.map((item, idx) => `
+        <button class="recent-folio-chip" onclick="showSingleFolio(${JSON.stringify(item).replace(/"/g, '&quot;')}, ${idx})">
+            <span class="rfc-folio">${item.folio}</span>
+            <span class="rfc-product">${(item.producto || '').slice(0, 28)}</span>
+            <div class="rfc-status">
+                ${item.la_reina ? `<span class="rfc-dot rfc-dot--blue"></span>` : `<span class="rfc-dot rfc-dot--empty"></span>`}
+                ${item.externo  ? `<span class="rfc-dot rfc-dot--green"></span>` : `<span class="rfc-dot rfc-dot--empty"></span>`}
+            </div>
+        </button>`).join('')}
+    </div>`;
+    ccResults.innerHTML = header + grid;
+}
+
+window.showSingleFolio = function(item, idx) {
+    renderCCResults([item]);
+};
 
 window.debouncedSearch = function(val) {
     clearTimeout(ccSearchTimer);
@@ -594,13 +632,28 @@ function renderHistory(filter = '') {
         return;
     }
 
-    historyContainer.innerHTML = `
-        <div class="search-bar">
+    historyContainer.innerHTML =
+        `<div class="search-bar" style="margin-bottom:0;">
             <i class="fas fa-search"></i>
-            <input type="text" id="history-search" placeholder="Buscar por producto, vehículo, folio..." value="${filter}"
-                oninput="renderHistory(this.value.toLowerCase())" />
+            <input type="text" id="history-search" placeholder="Folio, producto, vehículo..." />
         </div>
-        ${filtered.map((item, idx) => renderHistoryCard(item, idx)).join('')}`;
+        <div id="history-cards"></div>`;
+
+    const searchEl = document.getElementById('history-search');
+    const cardsEl  = document.getElementById('history-cards');
+
+    cardsEl.innerHTML = filtered.map((item, idx) => renderHistoryCard(item, idx)).join('');
+
+    searchEl.addEventListener('input', function() {
+        const q = this.value.toLowerCase().trim();
+        let visible = 0;
+        cardsEl.querySelectorAll('.history-card').forEach(card => {
+            const match = !q || (card.dataset.searchText || '').includes(q);
+            card.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        historySubtitle.textContent = `${visible} respuesta${visible !== 1 ? 's' : ''} — ${USER_DISPLAY[currentUser].role}`;
+    });
 }
 
 function renderHistoryCard(item, idx) {
@@ -659,7 +712,8 @@ function renderHistoryCard(item, idx) {
         ? `<a href="${item.foto}" target="_blank" class="foto-preview-btn"><i class="fas fa-image"></i> Ver foto</a>` : '';
 
     return `
-    <div class="history-card" id="hcard-${idx}">
+    <div class="history-card" id="hcard-${idx}"
+         data-search-text="${[item.producto, item.folio, item.marca_modelo_año, item.my_status, item.ejecutivo].join(' ').toLowerCase()}">
         <div class="card-header" style="margin-bottom:0.75rem;">
             <div style="display:flex;flex-direction:column;gap:3px;">
                 <span class="badge">Folio ${item.folio || 'S/N'}</span>
