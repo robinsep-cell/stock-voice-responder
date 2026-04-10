@@ -434,7 +434,7 @@ function getRecentFoliosHTML(items) {
                 : `openHistoryForFolio('${item.folio}')`;
             
             return `
-            <button class="recent-folio-chip" onclick="${clickAction}">
+            <button class="recent-folio-chip ${getEjecutivoClass(item.ejecutivo)}" onclick="${clickAction}">
                 <span class="rfc-folio">${item.folio}</span>
                 <span class="rfc-product">${(item.producto || '').slice(0, 28)}</span>
                 <div class="rfc-status">

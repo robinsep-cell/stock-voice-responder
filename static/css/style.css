@@ -617,6 +617,15 @@ header {
     transform: scale(0.97);
 }
 
+.recent-folio-chip.ejecutivo-badge--cecilia { background: rgba(255, 45, 85, 0.06); border-color: rgba(255, 45, 85, 0.2); }
+.recent-folio-chip.ejecutivo-badge--cecilia .rfc-folio { color: #d90032; }
+
+.recent-folio-chip.ejecutivo-badge--patricio { background: rgba(255, 149, 0, 0.06); border-color: rgba(255, 149, 0, 0.2); }
+.recent-folio-chip.ejecutivo-badge--patricio .rfc-folio { color: #b86b00; }
+
+.recent-folio-chip.ejecutivo-badge--ricardo { background: rgba(0, 199, 190, 0.06); border-color: rgba(0, 199, 190, 0.2); }
+.recent-folio-chip.ejecutivo-badge--ricardo .rfc-folio { color: #008781; }
+
 .rfc-folio {
     font-weight: 700;
     font-size: 0.85rem;
