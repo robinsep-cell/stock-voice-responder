@@ -100,6 +100,27 @@
         <div class="container" id="history-container"></div>
     </div>
 
+    <!-- ===== USERS MANAGEMENT SCREEN (admin only) ===== -->
+    <div id="users-screen" style="display:none;">
+        <header>
+            <div class="header-top">
+                <button class="back-btn" onclick="hideUsersScreen()">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+                <span class="history-title">
+                    <i class="fas fa-users" style="margin-right:5px;"></i>Usuarios
+                </span>
+                <div style="width:80px;"></div>
+            </div>
+            <p class="subtitle" id="users-subtitle">Cargando...</p>
+        </header>
+        <div class="container" id="users-list">
+            <div style="text-align:center;padding:2rem;">
+                <div class="loader" style="display:inline-block;"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- ===== CALL CENTER SCREEN ===== -->
     <div id="cc-screen" style="display:none;">
         <header>

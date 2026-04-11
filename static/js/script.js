@@ -179,14 +179,205 @@ window.logout = function() {
     localStorage.removeItem('stockvoice_token');
     localStorage.removeItem('stockvoice_realname');
     if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-    document.getElementById('main-app').style.display      = 'none';
+    document.getElementById('main-app').style.display       = 'none';
     document.getElementById('history-screen').style.display = 'none';
     document.getElementById('cc-screen').style.display      = 'none';
+    const usersScreen = document.getElementById('users-screen');
+    if (usersScreen) usersScreen.style.display = 'none';
     userSelectScreen.style.display = 'flex';
 };
 
+// Menu shown when the user taps the header user icon.
+// Admin (user_key=robinson) gets an extra "Ver usuarios" option.
 window.changeUser = function() {
-    if (confirm('¿Cerrar sesión?')) window.logout();
+    // Remove any previous instance of the menu
+    const prev = document.getElementById('user-menu-overlay');
+    if (prev) prev.remove();
+
+    const isAdmin = currentUser === 'robinson';
+    const overlay = document.createElement('div');
+    overlay.id = 'user-menu-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:9999;padding:1rem;';
+
+    const panel = document.createElement('div');
+    panel.style.cssText = 'background:#fff;border-radius:16px;padding:1.25rem;min-width:260px;max-width:340px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,0.35);';
+    panel.innerHTML = `
+        <h3 style="margin:0 0 0.9rem 0;font-size:1.05rem;text-align:center;color:#1a1a1a;">Opciones</h3>
+        ${isAdmin ? `
+            <button id="menu-users-btn" style="display:block;width:100%;padding:0.85rem;margin-bottom:0.55rem;background:var(--primary);color:#fff;border:none;border-radius:12px;font-size:0.95rem;font-weight:700;cursor:pointer;">
+                <i class="fas fa-users" style="margin-right:6px;"></i>Gestión de usuarios
+            </button>` : ''}
+        <button id="menu-logout-btn" style="display:block;width:100%;padding:0.85rem;margin-bottom:0.55rem;background:var(--danger);color:#fff;border:none;border-radius:12px;font-size:0.95rem;font-weight:700;cursor:pointer;">
+            <i class="fas fa-sign-out-alt" style="margin-right:6px;"></i>Cerrar sesión
+        </button>
+        <button id="menu-cancel-btn" style="display:block;width:100%;padding:0.85rem;background:transparent;color:#666;border:1px solid #ddd;border-radius:12px;font-size:0.95rem;cursor:pointer;">
+            Cancelar
+        </button>`;
+
+    overlay.appendChild(panel);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+
+    if (isAdmin) {
+        document.getElementById('menu-users-btn').onclick = () => { overlay.remove(); showUsersScreen(); };
+    }
+    document.getElementById('menu-logout-btn').onclick = () => { overlay.remove(); window.logout(); };
+    document.getElementById('menu-cancel-btn').onclick = () => overlay.remove();
+};
+
+// =============================================
+// USER MANAGEMENT (admin only)
+// =============================================
+window.showUsersScreen = async function() {
+    if (currentUser !== 'robinson') {
+        alert('Solo el administrador puede acceder a esta vista.');
+        return;
+    }
+    document.getElementById('main-app').style.display       = 'none';
+    document.getElementById('history-screen').style.display = 'none';
+    document.getElementById('cc-screen').style.display      = 'none';
+    const screen = document.getElementById('users-screen');
+    screen.style.display = 'block';
+    document.getElementById('users-subtitle').textContent = 'Cargando...';
+    document.getElementById('users-list').innerHTML =
+        '<div style="text-align:center;padding:2rem;"><div class="loader" style="display:inline-block;"></div></div>';
+    await fetchUsers();
+};
+
+window.hideUsersScreen = function() {
+    document.getElementById('users-screen').style.display = 'none';
+    document.getElementById('main-app').style.display = 'block';
+};
+
+async function fetchUsers() {
+    try {
+        const res = await fetch('/api/users');
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderUsersList(data);
+        document.getElementById('users-subtitle').textContent =
+            `${data.length} usuario${data.length !== 1 ? 's' : ''} registrado${data.length !== 1 ? 's' : ''}`;
+    } catch (err) {
+        document.getElementById('users-list').innerHTML =
+            `<p style="text-align:center;color:var(--danger);padding:2rem;">Error al cargar usuarios.<br><small>${err.message}</small></p>`;
+        document.getElementById('users-subtitle').textContent = 'Error';
+    }
+}
+
+function renderUsersList(users) {
+    const list = document.getElementById('users-list');
+    if (!users || users.length === 0) {
+        list.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--text-muted);">No hay usuarios registrados.</p>';
+        return;
+    }
+
+    const estadoBadge = (estado) => {
+        const map = {
+            'Aprobado':  { bg: '#16a34a', text: 'white' },
+            'Pendiente': { bg: '#eab308', text: 'white' },
+            'Revocado':  { bg: '#dc2626', text: 'white' },
+        };
+        const c = map[estado] || { bg: '#6b7280', text: 'white' };
+        return `<span class="badge" style="background:${c.bg};color:${c.text};">${estado || 'Sin estado'}</span>`;
+    };
+
+    const roleLabel = (role, user_key) => {
+        if (role) return role;
+        // Legacy display based on inferred user_key
+        if (user_key === 'ignacio')    return 'Respuesta-Ignacio (legacy)';
+        if (user_key === 'robinson')   return 'Respuesta-Robinson (legacy)';
+        if (user_key === 'callcenter') return 'Consulta (legacy)';
+        return '(ninguno)';
+    };
+
+    list.innerHTML = users.map(u => `
+        <div class="card" style="margin-bottom:0.9rem;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.75rem;margin-bottom:0.6rem;">
+                <div style="min-width:0;flex:1;">
+                    <div style="font-weight:700;font-size:1.05rem;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(u.name || '(sin nombre)')}</div>
+                    <div style="color:var(--text-muted);font-size:0.82rem;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(u.email)}</div>
+                </div>
+                ${estadoBadge(u.estado)}
+            </div>
+
+            <div style="font-size:0.85rem;margin-bottom:0.6rem;">
+                <strong>Rol:</strong> ${escapeHtml(roleLabel(u.role, u.user_key))}
+                ${u.has_token ? '<span style="margin-left:0.5rem;color:var(--success);font-size:0.75rem;">● sesión activa</span>' : ''}
+            </div>
+
+            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+                ${u.estado === 'Pendiente'
+                    ? `<button class="status-btn" onclick="approveUser(${u.row_index})">✅ Aprobar</button>`
+                    : ''}
+                <button class="status-btn" onclick="changeUserRole(${u.row_index}, '${escapeAttr(u.email)}')">🔄 Cambiar rol</button>
+                ${u.estado !== 'Revocado'
+                    ? `<button class="status-btn" onclick="revokeUser(${u.row_index}, '${escapeAttr(u.email)}')" style="background:#dc2626;color:#fff;">🚫 Revocar</button>`
+                    : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function escapeHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function escapeAttr(s) {
+    return String(s == null ? '' : s).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+window.approveUser = async function(rowIdx) {
+    try {
+        const res = await fetch('/api/users/approve', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({row_index: rowIdx})
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        await fetchUsers();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+};
+
+window.changeUserRole = async function(rowIdx, email) {
+    const choice = prompt(
+        `Cambiar rol de ${email}:\n\n1 = Consulta (sube fotos)\n2 = Respuesta-Ignacio (responde en La Reina)\n3 = Respuesta-Robinson (responde en Externo)\n\nEscribe 1, 2 o 3:`
+    );
+    if (choice === null) return;
+    const roleMap = {'1': 'Consulta', '2': 'Respuesta-Ignacio', '3': 'Respuesta-Robinson'};
+    const newRole = roleMap[choice.trim()];
+    if (!newRole) { alert('Opción inválida. Usa 1, 2 o 3.'); return; }
+    try {
+        const res = await fetch('/api/users/role', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({row_index: rowIdx, role: newRole})
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        await fetchUsers();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+};
+
+window.revokeUser = async function(rowIdx, email) {
+    if (!confirm(`¿Revocar el acceso de ${email}?\nEsta acción cierra su sesión y le impide volver a entrar hasta ser re-aprobado.`)) return;
+    try {
+        const res = await fetch('/api/users/revoke', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({row_index: rowIdx})
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        await fetchUsers();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
 };
 
 function showMainApp() {

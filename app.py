@@ -90,6 +90,21 @@ def get_gspread_client():
         raise Exception("No se encontraron credenciales de Google.")
     return gspread.authorize(creds)
 
+def compute_user_key(name, role):
+    """Decide which user_key a row maps to.
+    Priority: explicit Rol column values set via admin UI > legacy name matching.
+    """
+    role_l = (role or '').lower().strip()
+    name_l = (name or '').lower().strip()
+    # Explicit roles assigned via admin UI
+    if role_l == 'respuesta-ignacio':  return 'ignacio'
+    if role_l == 'respuesta-robinson': return 'robinson'
+    if role_l == 'consulta':           return 'callcenter'
+    # Legacy fallback: infer from the user's name
+    if 'ignacio'  in name_l: return 'ignacio'
+    if 'robinson' in name_l: return 'robinson'
+    return 'callcenter'
+
 def get_user_from_token(token):
     if not token:
         print("[AUTH] get_user_from_token: token vacío", flush=True)
@@ -111,21 +126,15 @@ def get_user_from_token(token):
             sheet_token  = (r[5] or '').strip()
             sheet_estado = (r[3] or '').strip()
             if sheet_token == token and sheet_estado == 'Aprobado':
-                lowername = (r[1] or '').lower()
-                if 'ignacio' in lowername:
-                    user_key = 'ignacio'
-                elif 'robinson' in lowername:
-                    user_key = 'robinson'
-                else:
-                    user_key = 'callcenter'
                 user = {
                     'email':    (r[0] or '').strip(),
                     'name':     (r[1] or '').strip(),
                     'role':     (r[2] or '').strip(),
-                    'user_key': user_key,
+                    'user_key': compute_user_key(r[1] if len(r) > 1 else '',
+                                                 r[2] if len(r) > 2 else ''),
                 }
                 VALID_TOKENS[token] = user
-                print(f"[AUTH] ✅ Token válido para {user['email']} ({user_key})", flush=True)
+                print(f"[AUTH] ✅ Token válido para {user['email']} ({user['user_key']})", flush=True)
                 return user
         print(f"[AUTH] ❌ Token no coincide con ninguna fila Aprobada. Primeros 8 chars del token recibido: {token[:8]}…", flush=True)
     except Exception as e:
@@ -187,11 +196,7 @@ def api_login():
                     token = str(uuid.uuid4()).strip()
                     sheet.update_cell(idx, 6, token)
                     print(f"[AUTH] Nuevo token emitido para {email} → {token[:8]}…", flush=True)
-                    # Use lowername if applicable
-                    lowername = r[1].lower()
-                    if 'ignacio' in lowername: user_key = 'ignacio'
-                    elif 'robinson' in lowername: user_key = 'robinson'
-                    else: user_key = 'callcenter'
+                    user_key = compute_user_key(r[1], r[2])
                     
                     user_obj = {'email': email, 'name': r[1], 'role': r[2], 'user_key': user_key}
                     VALID_TOKENS[token] = user_obj
@@ -601,6 +606,117 @@ def update_row():
     except Exception as e:
         print(traceback.format_exc(), flush=True)
         return jsonify({"error": str(e)}), 500
+
+
+# =============================================
+# USER MANAGEMENT (admin-only, Robinson)
+# =============================================
+def require_admin(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = (request.headers.get('Authorization', '') or '').strip()
+        if not auth_header.lower().startswith('bearer '):
+            return jsonify({'error': 'Acceso no autorizado'}), 401
+        token = auth_header[7:].strip()
+        user_obj = get_user_from_token(token)
+        if not user_obj:
+            return jsonify({'error': 'Sesión expirada o inválida'}), 401
+        if user_obj.get('user_key') != 'robinson':
+            print(f"[ADMIN] ❌ Acceso denegado a {user_obj.get('email')} ({user_obj.get('user_key')})", flush=True)
+            return jsonify({'error': 'Solo el administrador puede acceder'}), 403
+        request.user_obj = user_obj
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route('/api/users', methods=['GET'])
+@require_admin
+def list_users():
+    try:
+        client = get_gspread_client()
+        sheet = client.open_by_key(SHEET_ID).worksheet('Usuarios')
+        rows = sheet.get_all_values()
+        users = []
+        for idx, r in enumerate(rows[1:], start=2):
+            if not r or not (r[0] or '').strip():
+                continue
+            padded = r + [''] * max(0, 6 - len(r))
+            users.append({
+                'row_index': idx,
+                'email':     (padded[0] or '').strip(),
+                'name':      (padded[1] or '').strip(),
+                'role':      (padded[2] or '').strip(),
+                'estado':    (padded[3] or '').strip(),
+                'has_token': bool((padded[5] or '').strip()),
+                'user_key':  compute_user_key(padded[1], padded[2]),
+            })
+        return jsonify(users)
+    except Exception as e:
+        print(traceback.format_exc(), flush=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/users/approve', methods=['POST'])
+@require_admin
+def approve_user():
+    try:
+        data = request.json or {}
+        row_idx = int(data.get('row_index', 0))
+        if row_idx < 2:
+            return jsonify({'error': 'row_index inválido'}), 400
+        client = get_gspread_client()
+        sheet = client.open_by_key(SHEET_ID).worksheet('Usuarios')
+        sheet.update_cell(row_idx, 4, 'Aprobado')  # col D = Estado
+        print(f"[ADMIN] ✅ Usuario en fila {row_idx} aprobado", flush=True)
+        return jsonify({'success': True})
+    except Exception as e:
+        print(traceback.format_exc(), flush=True)
+        return jsonify({'error': str(e)}), 500
+
+
+ALLOWED_ROLES = {'Consulta', 'Respuesta-Ignacio', 'Respuesta-Robinson'}
+
+@app.route('/api/users/role', methods=['POST'])
+@require_admin
+def set_user_role():
+    try:
+        data = request.json or {}
+        row_idx = int(data.get('row_index', 0))
+        new_role = (data.get('role', '') or '').strip()
+        if row_idx < 2:
+            return jsonify({'error': 'row_index inválido'}), 400
+        if new_role not in ALLOWED_ROLES:
+            return jsonify({'error': f'Rol inválido. Usa uno de: {sorted(ALLOWED_ROLES)}'}), 400
+        client = get_gspread_client()
+        sheet = client.open_by_key(SHEET_ID).worksheet('Usuarios')
+        sheet.update_cell(row_idx, 3, new_role)  # col C = Rol
+        # Clear in-memory token cache so the new role takes effect on the next request
+        VALID_TOKENS.clear()
+        print(f"[ADMIN] 🔄 Rol de fila {row_idx} cambiado a {new_role}", flush=True)
+        return jsonify({'success': True})
+    except Exception as e:
+        print(traceback.format_exc(), flush=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/users/revoke', methods=['POST'])
+@require_admin
+def revoke_user():
+    try:
+        data = request.json or {}
+        row_idx = int(data.get('row_index', 0))
+        if row_idx < 2:
+            return jsonify({'error': 'row_index inválido'}), 400
+        client = get_gspread_client()
+        sheet = client.open_by_key(SHEET_ID).worksheet('Usuarios')
+        sheet.update_cell(row_idx, 4, 'Revocado')  # col D = Estado
+        sheet.update_cell(row_idx, 6, '')          # col F = Token
+        VALID_TOKENS.clear()
+        print(f"[ADMIN] 🚫 Usuario en fila {row_idx} revocado", flush=True)
+        return jsonify({'success': True})
+    except Exception as e:
+        print(traceback.format_exc(), flush=True)
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
