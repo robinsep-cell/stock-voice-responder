@@ -12,7 +12,7 @@ function isValidFotoUrl(str) {
 let consultations = [];
 
 // ---- DOM refs ----
-const userSelectScreen = document.getElementById('user-select-screen');
+const userSelectScreen = document.getElementById('auth-screen');
 const mainApp          = document.getElementById('main-app');
 const container        = document.getElementById('cards-container');
 const refreshBtn       = document.getElementById('refresh-btn');
