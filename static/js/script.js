@@ -185,7 +185,9 @@ window.logout = function() {
     userSelectScreen.style.display = 'flex';
 };
 
-window.changeUser = window.logout;
+window.changeUser = function() {
+    if (confirm('¿Cerrar sesión?')) window.logout();
+};
 
 function showMainApp() {
     userSelectScreen.style.display = 'none';
