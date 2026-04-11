@@ -170,7 +170,7 @@ def api_register():
             if len(r) > 0 and r[0].lower() == email:
                 return jsonify({'error': 'Correo ya registrado'}), 400
         
-        sheet.append_row([email, name, 'Ingreso de consultas', 'Pendiente', generate_password_hash(password), ''])
+        sheet.append_row([email, name, 'Ingreso de consultas', 'Pendiente', generate_password_hash(password, method="pbkdf2:sha256"), ''])
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
