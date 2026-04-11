@@ -16,6 +16,20 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
+# ---- Request tracing: log every incoming API call and its response status ----
+@app.before_request
+def _trace_request_in():
+    if request.path.startswith('/api/'):
+        auth = request.headers.get('Authorization', '')
+        has_token = 'yes' if auth.startswith('Bearer ') else 'no'
+        print(f"[REQ→] {request.method} {request.path}  token={has_token}", flush=True)
+
+@app.after_request
+def _trace_request_out(response):
+    if request.path.startswith('/api/'):
+        print(f"[REQ←] {request.method} {request.path}  status={response.status_code}", flush=True)
+    return response
+
 VALID_TOKENS = {}
 
 SHEET_ID = '1J3t28M_0oZuVjkZ8GxNrD08kiGqd-A08I23jAiv8dPU'
@@ -78,11 +92,11 @@ def get_gspread_client():
 
 def get_user_from_token(token):
     if not token:
-        print("[AUTH] get_user_from_token: token vacío")
+        print("[AUTH] get_user_from_token: token vacío", flush=True)
         return None
     token = token.strip()
     if not token:
-        print("[AUTH] get_user_from_token: token sólo espacios")
+        print("[AUTH] get_user_from_token: token sólo espacios", flush=True)
         return None
     if token in VALID_TOKENS:
         return VALID_TOKENS[token]
@@ -90,7 +104,7 @@ def get_user_from_token(token):
         client = get_gspread_client()
         sheet = client.open_by_key(SHEET_ID).worksheet('Usuarios')
         rows = sheet.get_all_values()
-        print(f"[AUTH] Buscando token (len={len(token)}) entre {len(rows)-1} usuarios en la hoja 'Usuarios'")
+        print(f"[AUTH] Buscando token (len={len(token)}) entre {len(rows)-1} usuarios en la hoja 'Usuarios'", flush=True)
         for r in rows[1:]:
             if len(r) < 6:
                 continue
@@ -111,12 +125,12 @@ def get_user_from_token(token):
                     'user_key': user_key,
                 }
                 VALID_TOKENS[token] = user
-                print(f"[AUTH] ✅ Token válido para {user['email']} ({user_key})")
+                print(f"[AUTH] ✅ Token válido para {user['email']} ({user_key})", flush=True)
                 return user
-        print(f"[AUTH] ❌ Token no coincide con ninguna fila Aprobada. Primeros 8 chars del token recibido: {token[:8]}…")
+        print(f"[AUTH] ❌ Token no coincide con ninguna fila Aprobada. Primeros 8 chars del token recibido: {token[:8]}…", flush=True)
     except Exception as e:
-        print(f"[AUTH ERROR] get_user_from_token explotó: {e}")
-        print(traceback.format_exc())
+        print(f"[AUTH ERROR] get_user_from_token explotó: {e}", flush=True)
+        print(traceback.format_exc(), flush=True)
     return None
 
 def safe_get(row, col_1indexed):
@@ -136,12 +150,12 @@ def require_auth(f):
         auth_header = request.headers.get('Authorization', '') or ''
         auth_header = auth_header.strip()
         if not auth_header.lower().startswith('bearer '):
-            print(f"[AUTH] ❌ Header Authorization inválido: {auth_header[:20]!r} en {request.path}")
+            print(f"[AUTH] ❌ Header Authorization inválido: {auth_header[:20]!r} en {request.path}", flush=True)
             return jsonify({'error': 'Acceso no autorizado'}), 401
         token = auth_header[7:].strip()
         user_obj = get_user_from_token(token)
         if not user_obj:
-            print(f"[AUTH] ❌ Token rechazado en {request.path}")
+            print(f"[AUTH] ❌ Token rechazado en {request.path}", flush=True)
             return jsonify({'error': 'Sesión expirada o inválida'}), 401
 
         # Inject user logic inside the request context
@@ -172,7 +186,7 @@ def api_login():
                 if check_password_hash(p_hash, password):
                     token = str(uuid.uuid4()).strip()
                     sheet.update_cell(idx, 6, token)
-                    print(f"[AUTH] Nuevo token emitido para {email} → {token[:8]}…")
+                    print(f"[AUTH] Nuevo token emitido para {email} → {token[:8]}…", flush=True)
                     # Use lowername if applicable
                     lowername = r[1].lower()
                     if 'ignacio' in lowername: user_key = 'ignacio'
@@ -291,7 +305,7 @@ def get_pending():
         return jsonify(pending)
 
     except Exception as e:
-        print(traceback.format_exc())
+        print(traceback.format_exc(), flush=True)
         return jsonify({"error": str(e)}), 500
 
 
@@ -359,7 +373,7 @@ def get_history():
         return jsonify(history)
 
     except Exception as e:
-        print(traceback.format_exc())
+        print(traceback.format_exc(), flush=True)
         return jsonify({"error": str(e)}), 500
 
 
@@ -417,7 +431,7 @@ def consultations():
 
         return jsonify(results)
     except Exception as e:
-        print(traceback.format_exc())
+        print(traceback.format_exc(), flush=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -475,7 +489,7 @@ def update_foto():
 
         return jsonify({'success': True})
     except Exception as e:
-        print(traceback.format_exc())
+        print(traceback.format_exc(), flush=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -540,7 +554,7 @@ def recent_folios():
 
         return jsonify(results)
     except Exception as e:
-        print(traceback.format_exc())
+        print(traceback.format_exc(), flush=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -585,7 +599,7 @@ def update_row():
         return jsonify({"success": True})
 
     except Exception as e:
-        print(traceback.format_exc())
+        print(traceback.format_exc(), flush=True)
         return jsonify({"error": str(e)}), 500
 
 
