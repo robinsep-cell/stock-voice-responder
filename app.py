@@ -77,17 +77,46 @@ def get_gspread_client():
     return gspread.authorize(creds)
 
 def get_user_from_token(token):
-    if not token: return None
-    if token in VALID_TOKENS: return VALID_TOKENS[token]
+    if not token:
+        print("[AUTH] get_user_from_token: token vacío")
+        return None
+    token = token.strip()
+    if not token:
+        print("[AUTH] get_user_from_token: token sólo espacios")
+        return None
+    if token in VALID_TOKENS:
+        return VALID_TOKENS[token]
     try:
         client = get_gspread_client()
         sheet = client.open_by_key(SHEET_ID).worksheet('Usuarios')
-        for r in sheet.get_all_values()[1:]:
-            if len(r) >= 6 and r[5] == token and r[3] == 'Aprobado':
-                user = {'email': r[0], 'name': r[1], 'role': r[2]}
+        rows = sheet.get_all_values()
+        print(f"[AUTH] Buscando token (len={len(token)}) entre {len(rows)-1} usuarios en la hoja 'Usuarios'")
+        for r in rows[1:]:
+            if len(r) < 6:
+                continue
+            sheet_token  = (r[5] or '').strip()
+            sheet_estado = (r[3] or '').strip()
+            if sheet_token == token and sheet_estado == 'Aprobado':
+                lowername = (r[1] or '').lower()
+                if 'ignacio' in lowername:
+                    user_key = 'ignacio'
+                elif 'robinson' in lowername:
+                    user_key = 'robinson'
+                else:
+                    user_key = 'callcenter'
+                user = {
+                    'email':    (r[0] or '').strip(),
+                    'name':     (r[1] or '').strip(),
+                    'role':     (r[2] or '').strip(),
+                    'user_key': user_key,
+                }
                 VALID_TOKENS[token] = user
+                print(f"[AUTH] ✅ Token válido para {user['email']} ({user_key})")
                 return user
-    except: pass
+        print(f"[AUTH] ❌ Token no coincide con ninguna fila Aprobada. Primeros 8 chars del token recibido: {token[:8]}…")
+    except Exception as e:
+        print(f"[AUTH ERROR] get_user_from_token explotó: {e}")
+        print(traceback.format_exc())
     return None
 
 def safe_get(row, col_1indexed):
@@ -104,16 +133,19 @@ def index():
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
+        auth_header = request.headers.get('Authorization', '') or ''
+        auth_header = auth_header.strip()
+        if not auth_header.lower().startswith('bearer '):
+            print(f"[AUTH] ❌ Header Authorization inválido: {auth_header[:20]!r} en {request.path}")
             return jsonify({'error': 'Acceso no autorizado'}), 401
-        token = auth_header.split(' ')[1]
+        token = auth_header[7:].strip()
         user_obj = get_user_from_token(token)
         if not user_obj:
+            print(f"[AUTH] ❌ Token rechazado en {request.path}")
             return jsonify({'error': 'Sesión expirada o inválida'}), 401
-        
+
         # Inject user logic inside the request context
-        request.user_obj = user_obj 
+        request.user_obj = user_obj
         return f(*args, **kwargs)
     return decorated
 
@@ -138,8 +170,9 @@ def api_login():
                 if estado != 'Aprobado':
                     return jsonify({'error': 'Usuario en espera de aprobación.'}), 403
                 if check_password_hash(p_hash, password):
-                    token = str(uuid.uuid4())
+                    token = str(uuid.uuid4()).strip()
                     sheet.update_cell(idx, 6, token)
+                    print(f"[AUTH] Nuevo token emitido para {email} → {token[:8]}…")
                     # Use lowername if applicable
                     lowername = r[1].lower()
                     if 'ignacio' in lowername: user_key = 'ignacio'
