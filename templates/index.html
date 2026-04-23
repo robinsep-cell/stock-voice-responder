@@ -4,6 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Stock Voice — Responder Consultas</title>
+
+    <!-- Icons: browser tab + iPhone home-screen shortcut + PWA -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png">
+    <link rel="manifest" href="/static/manifest.webmanifest">
+
+    <!-- Install as a home-screen "app" on iPhone / Android -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Stock Voice">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Stock Voice">
+    <meta name="theme-color" content="#ffffff">
+
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -17,7 +32,7 @@
     <!-- ===== USER SELECTION SCREEN ===== -->
     <div id="auth-screen" class="user-select-screen">
         <div class="user-select-container">
-            <h1 style="font-size:1.6rem; font-weight:800; color:var(--text); margin-bottom:0.2rem; text-align:center;">Acceso Seguro</h1>
+            <img src="/static/img/logo.png" alt="Stock Voice" style="display:block;width:80%;max-width:280px;margin:0 auto 1rem auto;" />
             <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.5rem; text-align:center;">Ingresa tus credenciales para continuar</p>
             
             <div id="login-form">
@@ -54,7 +69,7 @@
         <header>
             <div class="header-top">
                 <div class="header-left">
-                    <i class="fas fa-boxes-stacked"></i>
+                    <img src="/static/img/apple-touch-icon.png" alt="" style="width:32px;height:32px;border-radius:7px;flex-shrink:0;" />
                     <h1>Stock Voice</h1>
                 </div>
                 <div style="display:flex; gap:0.5rem; align-items:center;">

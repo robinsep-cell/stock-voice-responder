@@ -734,14 +734,9 @@ function getRecentFoliosHTML(items) {
 }
 
 window.openHistoryForFolio = function(folio) {
-    showHistory();
-    setTimeout(() => {
-        const hSearch = document.getElementById('history-search');
-        if (hSearch) {
-            hSearch.value = folio;
-            hSearch.dispatchEvent(new Event('input'));
-        }
-    }, 600); // Give API enough time to load History
+    // Pass the folio through the chain so the filter is applied
+    // deterministically once the history data arrives (no race).
+    showHistory(folio);
 };
 
 function renderRecentFolios(items) {
@@ -967,7 +962,7 @@ const historySubtitle  = document.getElementById('history-subtitle');
 let historyData = [];
 let editingIndex = null;
 
-window.showHistory = async function() {
+window.showHistory = async function(initialSearch = '') {
     mainApp.style.display = 'none';
     historyScreen.style.display = 'block';
     historySubtitle.textContent = 'Cargando...';
@@ -976,7 +971,7 @@ window.showHistory = async function() {
             <div class="loader" style="display:inline-block;"></div>
             <p style="margin-top:1rem;color:var(--text-muted);">Cargando historial...</p>
         </div>`;
-    await fetchHistory();
+    await fetchHistory(initialSearch);
 };
 
 window.showMain = function() {
@@ -984,13 +979,13 @@ window.showMain = function() {
     mainApp.style.display = 'block';
 };
 
-async function fetchHistory() {
+async function fetchHistory(initialSearch = '') {
     try {
         const res  = await fetch(`/api/history?user=${currentUser}`);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         historyData = data;
-        renderHistory();
+        renderHistory(initialSearch);
     } catch(err) {
         historyContainer.innerHTML = `<p style="text-align:center;color:var(--danger);padding:2rem;">Error: ${err.message}</p>`;
     }
