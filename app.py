@@ -405,6 +405,9 @@ def consultations():
         sheet  = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         all_rows = sheet.get_all_values()
 
+        # Split into tokens so "toyota parabrisas" matches rows that have both
+        tokens = [t for t in q.split() if t]
+
         results = []
         for idx, row in enumerate(all_rows[1:], start=2):
             padded = row + [''] * 30
@@ -423,8 +426,21 @@ def consultations():
             if not is_valid:
                 continue
 
-            if not (q in folio.lower() or q in producto.lower()
-                    or q in vehiculo.lower() or q in ejecutivo.lower()):
+            # Build a single searchable string from every meaningful field
+            searchable = ' '.join([
+                folio,
+                producto,
+                safe_get(padded, COL_CARACT),
+                safe_get(padded, COL_LADO),
+                vehiculo,
+                ejecutivo,
+                safe_get(padded, COL_CLIENTE_NOMBRE),
+                safe_get(padded, COL_CLIENTE_TELEFONO),
+                safe_get(padded, COL_CLIENTE_EMAIL),
+            ]).lower()
+
+            # Every token must appear somewhere in the searchable string
+            if not all(t in searchable for t in tokens):
                 continue
 
             results.append({

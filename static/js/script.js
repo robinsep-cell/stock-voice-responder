@@ -748,11 +748,66 @@ function showCCScreen() {
 }
 
 // =============================================
-// NEW CONSULTATION FORM (callcenter)
+// NEW CONSULTATION FORM (callcenter) — chips
 // =============================================
+const NC_PRODUCTOS = [
+    'Parabrisas', 'Luneta', 'Espejo lateral', 'Vidrio puerta',
+    'Cuartón', 'Deflector', 'Cristal faro', 'Moldura',
+];
+const NC_LADOS = [
+    'Izquierdo', 'Derecho', 'Delantero', 'Trasero', 'Ambos', 'Par (izq+der)',
+];
+
+let ncSelectedProductos = new Set();
+let ncSelectedLados     = new Set();
+
+const NC_CHIP_BASE = 'display:inline-block;padding:0.32rem 0.75rem;border-radius:20px;border:1.5px solid #ddd;font-size:0.82rem;cursor:pointer;background:#f8f9fa;color:#444;font-family:Inter,sans-serif;font-weight:500;transition:all 0.12s;';
+const NC_CHIP_ON   = 'display:inline-block;padding:0.32rem 0.75rem;border-radius:20px;border:1.5px solid var(--callcenter,#0057ff);font-size:0.82rem;cursor:pointer;background:var(--callcenter,#0057ff);color:#fff;font-family:Inter,sans-serif;font-weight:700;transition:all 0.12s;';
+
+function ncRenderChips(containerId, list, selectedSet, type) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = list.map(val => {
+        const safeId = `nc-chip-${type}-${val.replace(/[\s()+]/g,'_')}`;
+        const on = selectedSet.has(val);
+        return `<span id="${safeId}" style="${on ? NC_CHIP_ON : NC_CHIP_BASE}" onclick="ncToggleChip('${type}','${val.replace(/'/g,"\\'")}','${safeId}')">${val}</span>`;
+    }).join('');
+}
+
+window.ncToggleChip = function(type, value, chipId) {
+    const set = type === 'producto' ? ncSelectedProductos : ncSelectedLados;
+    const el  = document.getElementById(chipId);
+    if (!el) return;
+    if (set.has(value)) {
+        set.delete(value);
+        el.setAttribute('style', NC_CHIP_BASE);
+    } else {
+        set.add(value);
+        el.setAttribute('style', NC_CHIP_ON);
+    }
+};
+
+function ncGetProducto() {
+    const chips = Array.from(ncSelectedProductos);
+    const free  = (document.getElementById('nc-producto-otro')?.value || '').trim();
+    return [...chips, ...(free ? [free] : [])].join(' + ');
+}
+
+function ncGetLado() {
+    const chips = Array.from(ncSelectedLados);
+    const free  = (document.getElementById('nc-lado-otro')?.value || '').trim();
+    return [...chips, ...(free ? [free] : [])].join(' + ');
+}
+
 window.openNewConsultationForm = function() {
-    // Reset all fields
-    ['nc-producto','nc-vehiculo','nc-lado','nc-caracteristicas',
+    // Reset chip state
+    ncSelectedProductos.clear();
+    ncSelectedLados.clear();
+    ncRenderChips('nc-producto-chips', NC_PRODUCTOS, ncSelectedProductos, 'producto');
+    ncRenderChips('nc-lado-chips',     NC_LADOS,     ncSelectedLados,     'lado');
+
+    // Reset text inputs
+    ['nc-vehiculo','nc-producto-otro','nc-lado-otro','nc-caracteristicas',
      'nc-cli-nombre','nc-cli-tel','nc-cli-email'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -763,8 +818,6 @@ window.openNewConsultationForm = function() {
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-check"></i> Crear';
     document.getElementById('new-consultation-modal').style.display = 'block';
-    // Focus producto so the keyboard pops up right away on mobile
-    setTimeout(() => document.getElementById('nc-producto')?.focus(), 50);
 };
 
 window.closeNewConsultationForm = function() {
@@ -772,20 +825,20 @@ window.closeNewConsultationForm = function() {
 };
 
 window.submitNewConsultation = async function() {
-    const producto       = document.getElementById('nc-producto').value.trim();
-    const vehiculo       = document.getElementById('nc-vehiculo').value.trim();
-    const lado           = document.getElementById('nc-lado').value.trim();
-    const caracteristicas= document.getElementById('nc-caracteristicas').value.trim();
-    const cliente_nombre = document.getElementById('nc-cli-nombre').value.trim();
-    const cliente_telefono = document.getElementById('nc-cli-tel').value.trim();
-    const cliente_email  = document.getElementById('nc-cli-email').value.trim();
+    const producto       = ncGetProducto();
+    const vehiculo       = (document.getElementById('nc-vehiculo')?.value || '').trim();
+    const lado           = ncGetLado();
+    const caracteristicas= (document.getElementById('nc-caracteristicas')?.value || '').trim();
+    const cliente_nombre = (document.getElementById('nc-cli-nombre')?.value || '').trim();
+    const cliente_telefono = (document.getElementById('nc-cli-tel')?.value || '').trim();
+    const cliente_email  = (document.getElementById('nc-cli-email')?.value || '').trim();
 
     const statusEl = document.getElementById('nc-status');
     statusEl.style.color = 'var(--danger,#dc2626)';
 
-    if (!producto)  { statusEl.textContent = 'Falta el producto'; return; }
+    if (!producto)  { statusEl.textContent = 'Elige o escribe el producto'; return; }
     if (!vehiculo)  { statusEl.textContent = 'Falta el vehículo'; return; }
-    if (!lado)      { statusEl.textContent = 'Falta el lado'; return; }
+    if (!lado)      { statusEl.textContent = 'Elige o escribe el lado'; return; }
 
     const btn = document.getElementById('nc-submit');
     btn.disabled = true;
@@ -924,10 +977,12 @@ function renderCCResults(items) {
                 </div>
                 <span class="ejecutivo-badge ${getEjecutivoClass(item.ejecutivo)}"><i class="fas fa-headset" style="margin-right:4px;"></i>${item.ejecutivo || '—'}</span>
             </div>
-            <div style="font-weight:700;font-size:0.95rem;margin-bottom:3px;">${item.producto}</div>
-            <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;">
-                ${item.marca_modelo_año || ''} ${item.lado ? '· ' + item.lado : ''}
+            <div style="font-weight:700;font-size:0.98rem;margin-bottom:2px;">${escapeHtml(item.producto || '—')}</div>
+            <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;">
+                ${escapeHtml(item.marca_modelo_año || '')}${item.lado ? ' · <b>' + escapeHtml(item.lado) + '</b>' : ''}
             </div>
+            ${item.caracteristicas ? `<div style="font-size:0.8rem;color:#555;background:#f7f7f7;border-radius:8px;padding:0.35rem 0.6rem;margin-bottom:0.5rem;"><i class="fas fa-info-circle" style="opacity:0.5;margin-right:4px;"></i>${escapeHtml(item.caracteristicas)}</div>` : ''}
+            ${renderClienteBlock(item)}
 
             <!-- Respuestas de La Reina e Ignacio -->
             ${(item.la_reina || item.la_reina_resp || item.externo || item.robinson_resp) ? `

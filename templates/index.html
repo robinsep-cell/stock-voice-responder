@@ -181,22 +181,46 @@
 
             <p style="font-size:0.78rem;color:#666;margin:0 0 1rem 0;">El folio, la fecha y el ejecutivo se rellenan automáticamente.</p>
 
+            <!-- PRODUCTO: chips + texto libre -->
             <div style="margin-bottom:0.7rem;">
-                <label style="display:block;font-size:0.78rem;font-weight:700;color:#333;margin-bottom:4px;">Producto *</label>
-                <input id="nc-producto" type="text" placeholder="Ej: Parabrisas, Espejo, Vidrio puerta..."
-                       style="width:100%;padding:0.7rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.95rem;box-sizing:border-box;font-family:Inter,sans-serif;" />
+                <label style="display:block;font-size:0.78rem;font-weight:700;color:#333;margin-bottom:6px;">Producto *</label>
+                <div id="nc-producto-chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px;">
+                    <!-- rendered by JS -->
+                </div>
+                <input id="nc-producto-otro" type="text" placeholder="Otro producto (texto libre)..."
+                       style="width:100%;padding:0.6rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.9rem;box-sizing:border-box;font-family:Inter,sans-serif;" />
             </div>
 
+            <!-- VEHÍCULO: datalist autocomplete + texto libre -->
             <div style="margin-bottom:0.7rem;">
                 <label style="display:block;font-size:0.78rem;font-weight:700;color:#333;margin-bottom:4px;">Vehículo *</label>
-                <input id="nc-vehiculo" type="text" placeholder="Marca, modelo y año (ej: Toyota Yaris 2018)"
+                <input id="nc-vehiculo" type="text" list="nc-marcas-list"
+                       placeholder="Marca, modelo y año (ej: Toyota Yaris 2018)"
                        style="width:100%;padding:0.7rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.95rem;box-sizing:border-box;font-family:Inter,sans-serif;" />
+                <datalist id="nc-marcas-list">
+                    <option value="Toyota"><option value="Chevrolet"><option value="Hyundai">
+                    <option value="Kia"><option value="Mazda"><option value="Nissan">
+                    <option value="Ford"><option value="Volkswagen"><option value="Renault">
+                    <option value="Peugeot"><option value="Citroën"><option value="Honda">
+                    <option value="Mitsubishi"><option value="Suzuki"><option value="Subaru">
+                    <option value="Jeep"><option value="Dodge"><option value="RAM">
+                    <option value="Mercedes-Benz"><option value="BMW"><option value="Audi">
+                    <option value="Volvo"><option value="Chery"><option value="MG">
+                    <option value="BYD"><option value="Great Wall"><option value="JAC">
+                    <option value="Geely"><option value="Fiat"><option value="SEAT">
+                    <option value="Skoda"><option value="Isuzu"><option value="Hino">
+                    <option value="Ssangyong"><option value="Haval"><option value="Zotye">
+                </datalist>
             </div>
 
+            <!-- LADO: chips + texto libre -->
             <div style="margin-bottom:0.7rem;">
-                <label style="display:block;font-size:0.78rem;font-weight:700;color:#333;margin-bottom:4px;">Lado *</label>
-                <input id="nc-lado" type="text" placeholder="Izquierdo / Derecho / Trasero / Ambos..."
-                       style="width:100%;padding:0.7rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.95rem;box-sizing:border-box;font-family:Inter,sans-serif;" />
+                <label style="display:block;font-size:0.78rem;font-weight:700;color:#333;margin-bottom:6px;">Lado *</label>
+                <div id="nc-lado-chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px;">
+                    <!-- rendered by JS -->
+                </div>
+                <input id="nc-lado-otro" type="text" placeholder="Otro (texto libre)..."
+                       style="width:100%;padding:0.6rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.9rem;box-sizing:border-box;font-family:Inter,sans-serif;" />
             </div>
 
             <div style="margin-bottom:1rem;">
