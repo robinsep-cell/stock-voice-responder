@@ -9,6 +9,28 @@ let currentUser = null;
 function isValidFotoUrl(str) {
     return typeof str === 'string' && str.startsWith('http');
 }
+
+// Renders a small "Cliente" panel on respondent cards when any of the
+// optional client fields was filled in by the callcenter. Returns '' if
+// no field was filled so the card stays compact.
+function renderClienteBlock(item) {
+    const name  = (item.cliente_nombre   || '').trim();
+    const tel   = (item.cliente_telefono || '').trim();
+    const email = (item.cliente_email    || '').trim();
+    if (!name && !tel && !email) return '';
+    const sanitize = (s) => String(s).replace(/[<>]/g, '');
+    const telDigits = tel.replace(/[^\d+]/g, '');
+    const lines = [];
+    if (name)  lines.push(`<div><i class="fas fa-user" style="width:14px;color:var(--text-muted);"></i> ${sanitize(name)}</div>`);
+    if (tel)   lines.push(`<div><i class="fas fa-phone" style="width:14px;color:var(--text-muted);"></i> <a href="tel:${telDigits}" style="color:inherit;text-decoration:none;">${sanitize(tel)}</a></div>`);
+    if (email) lines.push(`<div><i class="fas fa-envelope" style="width:14px;color:var(--text-muted);"></i> <a href="mailto:${sanitize(email)}" style="color:inherit;text-decoration:none;">${sanitize(email)}</a></div>`);
+    return `
+        <div class="cliente-block" style="background:rgba(0,87,255,0.06);border-left:3px solid #0057ff;border-radius:8px;padding:0.55rem 0.7rem;margin-bottom:0.75rem;font-size:0.85rem;line-height:1.4;">
+            <div style="font-size:0.7rem;font-weight:700;color:#0057ff;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Cliente</div>
+            ${lines.join('')}
+        </div>`;
+}
+
 let consultations = [];
 
 // ---- DOM refs ----
@@ -460,6 +482,9 @@ function renderCards() {
                 </div>`;
         }
 
+        // Client info block (only shown when at least one client field is filled)
+        const clienteBlock = renderClienteBlock(item);
+
         // Duplicates block
         let dupBlock = '';
         if (item.duplicates && item.duplicates.length > 0) {
@@ -516,6 +541,7 @@ function renderCards() {
                 </a>` : '').join('')}
             </div>` : ''}
 
+            ${clienteBlock}
             ${otherBlock}
             ${dupBlock}
 
@@ -692,6 +718,91 @@ function showCCScreen() {
     // Load recent folios immediately
     fetchRecentFolios();
 }
+
+// =============================================
+// NEW CONSULTATION FORM (callcenter)
+// =============================================
+window.openNewConsultationForm = function() {
+    // Reset all fields
+    ['nc-producto','nc-vehiculo','nc-lado','nc-caracteristicas',
+     'nc-cli-nombre','nc-cli-tel','nc-cli-email'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    document.getElementById('nc-status').textContent = '';
+    document.getElementById('nc-status').style.color = '';
+    const btn = document.getElementById('nc-submit');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-check"></i> Crear';
+    document.getElementById('new-consultation-modal').style.display = 'block';
+    // Focus producto so the keyboard pops up right away on mobile
+    setTimeout(() => document.getElementById('nc-producto')?.focus(), 50);
+};
+
+window.closeNewConsultationForm = function() {
+    document.getElementById('new-consultation-modal').style.display = 'none';
+};
+
+window.submitNewConsultation = async function() {
+    const producto       = document.getElementById('nc-producto').value.trim();
+    const vehiculo       = document.getElementById('nc-vehiculo').value.trim();
+    const lado           = document.getElementById('nc-lado').value.trim();
+    const caracteristicas= document.getElementById('nc-caracteristicas').value.trim();
+    const cliente_nombre = document.getElementById('nc-cli-nombre').value.trim();
+    const cliente_telefono = document.getElementById('nc-cli-tel').value.trim();
+    const cliente_email  = document.getElementById('nc-cli-email').value.trim();
+
+    const statusEl = document.getElementById('nc-status');
+    statusEl.style.color = 'var(--danger,#dc2626)';
+
+    if (!producto)  { statusEl.textContent = 'Falta el producto'; return; }
+    if (!vehiculo)  { statusEl.textContent = 'Falta el vehículo'; return; }
+    if (!lado)      { statusEl.textContent = 'Falta el lado'; return; }
+
+    const btn = document.getElementById('nc-submit');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="loader" style="width:16px;height:16px;border-width:2px;display:inline-block;"></div> Creando...';
+    statusEl.style.color = '';
+    statusEl.textContent = '';
+
+    try {
+        const res = await fetch('/api/new-consultation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                producto, vehiculo, lado, caracteristicas,
+                cliente_nombre, cliente_telefono, cliente_email,
+            }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        // Success — close modal, refresh recent folios, and surface the new folio.
+        statusEl.style.color = 'var(--success,#16a34a)';
+        statusEl.textContent = `✅ Folio ${data.folio} creado`;
+        setTimeout(() => {
+            closeNewConsultationForm();
+            fetchRecentFolios();
+            // Optionally pop the photo picker for this fresh folio so the
+            // callcenter can immediately attach a picture.
+            if (confirm(`Folio ${data.folio} creado. ¿Subir foto ahora?`)) {
+                currentFotoInfo = {
+                    rowIndex: data.row_index,
+                    folio:    String(data.folio),
+                    producto: producto,
+                    cardIdx:  null,
+                };
+                currentFotoRowIndex = data.row_index;
+                document.getElementById('foto-input').click();
+            }
+        }, 600);
+    } catch (err) {
+        statusEl.style.color = 'var(--danger,#dc2626)';
+        statusEl.textContent = `Error: ${err.message}`;
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check"></i> Crear';
+    }
+};
 
 async function fetchRecentFolios() {
     try {
@@ -1116,6 +1227,7 @@ function renderHistoryCard(item, idx) {
             ${fotosBtn}
         </div>
 
+        ${renderClienteBlock(item)}
         ${otherBlock}
         ${editForm}
     </div>`;

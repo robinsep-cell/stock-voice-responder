@@ -56,6 +56,11 @@ COL_ROBINSON_RESP   = 14  # N
 COL_LINK = 15  # O
 COLS_FOTOS = [16, 17, 18, 19, 20, 21]  # P, Q, R, S, T, U
 
+# Client data (filled in by callcenter when creating a new consultation)
+COL_CLIENTE_NOMBRE    = 22  # V
+COL_CLIENTE_TELEFONO  = 23  # W
+COL_CLIENTE_EMAIL     = 24  # X
+
 USER_CONFIG = {
     'ignacio': {
         'display_name': 'Ignacio Castañeda',
@@ -298,6 +303,9 @@ def get_pending():
                     "other_user":     cfg['other_name'],
                     "other_status":   other_status,
                     "other_resp":     other_resp,
+                    "cliente_nombre":   safe_get(row, COL_CLIENTE_NOMBRE),
+                    "cliente_telefono": safe_get(row, COL_CLIENTE_TELEFONO),
+                    "cliente_email":    safe_get(row, COL_CLIENTE_EMAIL),
                     "duplicates":     []
                 })
 
@@ -329,7 +337,7 @@ def get_history():
         rc  = cfg['resp_col']
         osc = cfg['other_status_col']
         orc = cfg['other_resp_col']
-        max_col = max(sc, rc, osc, orc, COL_LINK, max(COLS_FOTOS))
+        max_col = max(sc, rc, osc, orc, COL_LINK, max(COLS_FOTOS), COL_CLIENTE_EMAIL)
 
         client = get_gspread_client()
         sheet  = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
@@ -371,6 +379,9 @@ def get_history():
                     "other_user":       cfg['other_name'],
                     "other_status":     safe_get(row, osc),
                     "other_resp":       safe_get(row, orc),
+                    "cliente_nombre":   safe_get(row, COL_CLIENTE_NOMBRE),
+                    "cliente_telefono": safe_get(row, COL_CLIENTE_TELEFONO),
+                    "cliente_email":    safe_get(row, COL_CLIENTE_EMAIL),
                 })
 
         # Most recent first (highest row index = bottom of sheet = newest)
@@ -396,7 +407,7 @@ def consultations():
 
         results = []
         for idx, row in enumerate(all_rows[1:], start=2):
-            padded = row + [''] * 25
+            padded = row + [''] * 30
             folio    = safe_get(padded, COL_FOLIO)
             producto = safe_get(padded, COL_PRODUCTO)
             vehiculo = safe_get(padded, COL_VEHICULO)
@@ -430,6 +441,9 @@ def consultations():
                 'la_reina_resp':    safe_get(padded, COL_IGNACIO_RESP),
                 'externo':          safe_get(padded, COL_ROBINSON_STATUS),
                 'robinson_resp':    safe_get(padded, COL_ROBINSON_RESP),
+                'cliente_nombre':   safe_get(padded, COL_CLIENTE_NOMBRE),
+                'cliente_telefono': safe_get(padded, COL_CLIENTE_TELEFONO),
+                'cliente_email':    safe_get(padded, COL_CLIENTE_EMAIL),
             })
             if len(results) >= 20:
                 break
@@ -526,7 +540,7 @@ def recent_folios():
         results = []
         for raw_idx, row in enumerate(reversed(data_rows)):
             actual_idx = len(data_rows) - raw_idx + 1  # 1-based row in sheet
-            padded = row + [''] * 20
+            padded = row + [''] * 30
             folio = safe_get(padded, COL_FOLIO)
             
             is_valid = bool(
@@ -553,6 +567,9 @@ def recent_folios():
                 'la_reina_resp':    safe_get(padded, COL_IGNACIO_RESP),
                 'externo':          safe_get(padded, COL_ROBINSON_STATUS),
                 'robinson_resp':    safe_get(padded, COL_ROBINSON_RESP),
+                'cliente_nombre':   safe_get(padded, COL_CLIENTE_NOMBRE),
+                'cliente_telefono': safe_get(padded, COL_CLIENTE_TELEFONO),
+                'cliente_email':    safe_get(padded, COL_CLIENTE_EMAIL),
             })
             if len(results) >= 18:
                 break
@@ -606,6 +623,110 @@ def update_row():
     except Exception as e:
         print(traceback.format_exc(), flush=True)
         return jsonify({"error": str(e)}), 500
+
+
+# =============================================
+# NEW CONSULTATION CREATION (callcenter only)
+# =============================================
+def compute_next_folio(sheet):
+    """Scan column B of the Base sheet and return max(numeric folios) + 1.
+    Falls back to 1 if no numeric folio is found yet.
+    """
+    try:
+        col_values = sheet.col_values(COL_FOLIO)  # list of strings, includes header
+        max_folio = 0
+        for v in col_values[1:]:  # skip header
+            if not v:
+                continue
+            # Allow folios that are pure integers OR ones with non-digit prefix/suffix
+            # by extracting the longest digit run.
+            digits = ''
+            for ch in str(v):
+                if ch.isdigit():
+                    digits += ch
+                elif digits:
+                    break
+            if digits:
+                try:
+                    n = int(digits)
+                    if n > max_folio:
+                        max_folio = n
+                except ValueError:
+                    pass
+        return max_folio + 1
+    except Exception as e:
+        print(f"[FOLIO] compute_next_folio falló, fallback a timestamp: {e}", flush=True)
+        return int(time.time())
+
+
+@app.route('/api/new-consultation', methods=['POST'])
+@require_auth
+def new_consultation():
+    """Create a new row in the Base sheet from the callcenter form.
+    Only users with user_key='callcenter' may use this endpoint.
+    """
+    try:
+        user_obj = request.user_obj
+        if user_obj.get('user_key') != 'callcenter':
+            return jsonify({'error': 'Solo el call center puede crear consultas nuevas.'}), 403
+
+        data = request.json or {}
+        producto       = (data.get('producto', '') or '').strip()
+        caracteristicas= (data.get('caracteristicas', '') or '').strip()
+        lado           = (data.get('lado', '') or '').strip()
+        vehiculo       = (data.get('vehiculo', '') or '').strip()
+        cliente_nombre = (data.get('cliente_nombre', '') or '').strip()
+        cliente_tel    = (data.get('cliente_telefono', '') or '').strip()
+        cliente_email  = (data.get('cliente_email', '') or '').strip()
+
+        # Required fields
+        missing = []
+        if not producto: missing.append('producto')
+        if not lado:     missing.append('lado')
+        if not vehiculo: missing.append('vehiculo')
+        if missing:
+            return jsonify({'error': f'Faltan campos obligatorios: {", ".join(missing)}'}), 400
+
+        client = get_gspread_client()
+        sheet  = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+
+        folio = compute_next_folio(sheet)
+        fecha = time.strftime('%d/%m/%Y')
+        ejecutivo = user_obj.get('name', '') or 'Call Center'
+
+        # Build a row that lines up with the existing columns.
+        # Columns: A(empty), B=Folio, C=Fecha, D=Ejecutivo, E=Producto, F=Caract,
+        # G=Lado, H=Vehiculo, I-J(empty), K-L(ignacio), M-N(robinson),
+        # O=Link, P-U=Fotos, V=Cliente Nombre, W=Cliente Tel, X=Cliente Email
+        row = [''] * COL_CLIENTE_EMAIL
+        row[COL_FOLIO - 1]            = str(folio)
+        row[COL_FECHA - 1]            = fecha
+        row[COL_EJECUTIVO - 1]        = ejecutivo
+        row[COL_PRODUCTO - 1]         = producto
+        row[COL_CARACT - 1]           = caracteristicas
+        row[COL_LADO - 1]             = lado
+        row[COL_VEHICULO - 1]         = vehiculo
+        row[COL_CLIENTE_NOMBRE - 1]   = cliente_nombre
+        row[COL_CLIENTE_TELEFONO - 1] = cliente_tel
+        row[COL_CLIENTE_EMAIL - 1]    = cliente_email
+
+        sheet.append_row(row, value_input_option='USER_ENTERED')
+        # gspread doesn't return the row index from append_row in older versions,
+        # so we infer it from the current row count.
+        new_row_idx = len(sheet.col_values(COL_FOLIO))
+
+        print(f"[NEW] Folio {folio} creado por {ejecutivo} en fila {new_row_idx}", flush=True)
+        return jsonify({
+            'success':   True,
+            'folio':     folio,
+            'row_index': new_row_idx,
+            'fecha':     fecha,
+            'ejecutivo': ejecutivo,
+        })
+
+    except Exception as e:
+        print(traceback.format_exc(), flush=True)
+        return jsonify({'error': str(e)}), 500
 
 
 # =============================================
