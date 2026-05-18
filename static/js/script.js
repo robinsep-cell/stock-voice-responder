@@ -977,11 +977,12 @@ function renderCCResults(items) {
                 </div>
                 <span class="ejecutivo-badge ${getEjecutivoClass(item.ejecutivo)}"><i class="fas fa-headset" style="margin-right:4px;"></i>${item.ejecutivo || '—'}</span>
             </div>
-            <div style="font-weight:700;font-size:0.98rem;margin-bottom:2px;">${escapeHtml(item.producto || '—')}</div>
-            <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;">
-                ${escapeHtml(item.marca_modelo_año || '')}${item.lado ? ' · <b>' + escapeHtml(item.lado) + '</b>' : ''}
+            <div class="cc-product-title" style="font-weight:800;font-size:0.98rem;margin-bottom:4px;line-height:1.3;">${escapeHtml(item.producto || '—')}</div>
+            <div style="font-size:0.83rem;color:var(--text-muted);margin-bottom:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+                ${item.marca_modelo_año ? `<span><i class="fas fa-car" style="opacity:0.5;margin-right:3px;"></i>${escapeHtml(item.marca_modelo_año)}</span>` : ''}
+                ${item.lado ? `<span style="background:var(--primary-dim);color:var(--primary);border-radius:20px;padding:1px 8px;font-size:0.75rem;font-weight:700;">${escapeHtml(item.lado)}</span>` : ''}
             </div>
-            ${item.caracteristicas ? `<div style="font-size:0.8rem;color:#555;background:#f7f7f7;border-radius:8px;padding:0.35rem 0.6rem;margin-bottom:0.5rem;"><i class="fas fa-info-circle" style="opacity:0.5;margin-right:4px;"></i>${escapeHtml(item.caracteristicas)}</div>` : ''}
+            ${item.caracteristicas ? `<div style="font-size:0.8rem;color:#555;background:#f4f4f6;border-radius:9px;padding:0.4rem 0.7rem;margin-bottom:0.6rem;line-height:1.45;"><i class="fas fa-tag" style="opacity:0.4;margin-right:4px;"></i>${escapeHtml(item.caracteristicas)}</div>` : ''}
             ${renderClienteBlock(item)}
 
             <!-- Respuestas de La Reina e Ignacio -->
