@@ -968,73 +968,102 @@ function renderCCResults(items) {
             <h2>Sin resultados</h2><p>Intenta con otro término.</p></div>`;
         return;
     }
-    ccResults.innerHTML = items.map((item, idx) => `
-        <div class="cc-card" id="cc-card-${idx}">
-            <div class="card-header" style="margin-bottom:0.6rem;">
-                <div style="display:flex;flex-direction:column;gap:3px;">
-                    <span class="badge">Folio ${item.folio || 'S/N'}</span>
-                    ${item.fecha ? `<span class="fecha-badge"><i class="fas fa-calendar-alt"></i> ${item.fecha}</span>` : ''}
-                </div>
-                <span class="ejecutivo-badge ${getEjecutivoClass(item.ejecutivo)}"><i class="fas fa-headset" style="margin-right:4px;"></i>${item.ejecutivo || '—'}</span>
-            </div>
-            <div class="cc-product-title" style="font-weight:800;font-size:0.98rem;margin-bottom:4px;line-height:1.3;">${escapeHtml(item.producto || '—')}</div>
-            <div style="font-size:0.83rem;color:var(--text-muted);margin-bottom:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
-                ${item.marca_modelo_año ? `<span><i class="fas fa-car" style="opacity:0.5;margin-right:3px;"></i>${escapeHtml(item.marca_modelo_año)}</span>` : ''}
-                ${item.lado ? `<span style="background:var(--primary-dim);color:var(--primary);border-radius:20px;padding:1px 8px;font-size:0.75rem;font-weight:700;">${escapeHtml(item.lado)}</span>` : ''}
-            </div>
-            ${item.caracteristicas ? `<div style="font-size:0.8rem;color:#555;background:#f4f4f6;border-radius:9px;padding:0.4rem 0.7rem;margin-bottom:0.6rem;line-height:1.45;"><i class="fas fa-tag" style="opacity:0.4;margin-right:4px;"></i>${escapeHtml(item.caracteristicas)}</div>` : ''}
-            ${renderClienteBlock(item)}
 
-            <!-- Respuestas de La Reina e Ignacio -->
+    ccResults.innerHTML = items.map((item, idx) => {
+        const validFotos = (item.fotos || []).map((url, i) => ({url, i})).filter(f => isValidFotoUrl(f.url));
+        const nombre  = (item.cliente_nombre   || '').trim();
+        const tel     = (item.cliente_telefono || '').trim();
+        const email   = (item.cliente_email    || '').trim();
+        const telDigits = tel.replace(/[^\d+]/g, '');
+        const hasCliente = nombre || tel || email;
+
+        return `
+        <div class="cc-card" id="cc-card-${idx}">
+
+            <!-- ── HERO: Vehículo ── -->
+            <div style="margin-bottom:0.55rem;">
+                <div style="font-size:1.35rem;font-weight:800;color:var(--text);line-height:1.2;margin-bottom:3px;">
+                    <i class="fas fa-car" style="font-size:1rem;opacity:0.45;margin-right:6px;"></i>${escapeHtml(item.marca_modelo_año || '—')}
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">
+                    <span style="font-size:0.88rem;font-weight:700;color:var(--text-sub);">${escapeHtml(item.producto || '')}</span>
+                    ${item.lado ? `<span style="background:var(--primary-dim);color:var(--primary);border-radius:20px;padding:2px 9px;font-size:0.75rem;font-weight:700;">${escapeHtml(item.lado)}</span>` : ''}
+                </div>
+            </div>
+
+            <!-- ── HERO: Cliente ── -->
+            ${hasCliente ? `
+            <div style="background:linear-gradient(135deg,#eef5ff 0%,#f0f8ff 100%);border:1.5px solid rgba(0,87,255,0.18);border-radius:13px;padding:0.85rem 1rem;margin-bottom:0.75rem;">
+                ${nombre ? `<div style="font-size:1.12rem;font-weight:800;color:#1d1d1f;margin-bottom:4px;"><i class="fas fa-user-circle" style="color:#0057ff;margin-right:6px;opacity:0.8;"></i>${escapeHtml(nombre)}</div>` : ''}
+                ${tel    ? `<a href="tel:${telDigits}" style="display:flex;align-items:center;gap:7px;font-size:1.05rem;font-weight:700;color:#0057ff;text-decoration:none;margin-bottom:${email?'4px':'0'};">
+                                <i class="fas fa-phone"></i>${escapeHtml(tel)}
+                            </a>` : ''}
+                ${email  ? `<a href="mailto:${escapeHtml(email)}" style="font-size:0.82rem;color:#555;text-decoration:none;"><i class="fas fa-envelope" style="margin-right:5px;opacity:0.6;"></i>${escapeHtml(email)}</a>` : ''}
+            </div>` : `
+            <div style="background:#f7f7f7;border-radius:10px;padding:0.5rem 0.85rem;margin-bottom:0.75rem;font-size:0.8rem;color:var(--text-muted);text-align:center;">
+                Sin datos de cliente
+            </div>`}
+
+            <!-- ── META: folio · fecha · ejecutivo ── -->
+            <div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:0.65rem;">
+                <span class="badge">Folio ${escapeHtml(item.folio || 'S/N')}</span>
+                ${item.fecha ? `<span class="fecha-badge"><i class="fas fa-calendar-alt"></i> ${escapeHtml(item.fecha)}</span>` : ''}
+                <span class="ejecutivo-badge ${getEjecutivoClass(item.ejecutivo)}" style="margin-left:auto;">
+                    <i class="fas fa-headset" style="margin-right:4px;"></i>${escapeHtml(item.ejecutivo || '—')}
+                </span>
+            </div>
+
+            <!-- ── Características ── -->
+            ${item.caracteristicas ? `
+            <div style="font-size:0.8rem;color:#555;background:#f4f4f6;border-radius:9px;padding:0.4rem 0.75rem;margin-bottom:0.65rem;line-height:1.5;">
+                <i class="fas fa-tag" style="opacity:0.4;margin-right:5px;"></i>${escapeHtml(item.caracteristicas)}
+            </div>` : ''}
+
+            <!-- ── Respuestas ── -->
             ${(item.la_reina || item.la_reina_resp || item.externo || item.robinson_resp) ? `
-            <div class="cc-responses">
+            <div class="cc-responses" style="margin-bottom:0.75rem;">
                 ${item.la_reina || item.la_reina_resp ? `
                 <div class="cc-response-row">
                     <span class="cc-resp-label" style="color:var(--ignacio);">La Reina</span>
                     <div class="cc-resp-content">
-                        ${item.la_reina ? `<span class="status-pill status--blue">${item.la_reina}</span>` : ''}
-                        ${item.la_reina_resp ? `<span class="cc-resp-text">${item.la_reina_resp}</span>` : ''}
+                        ${item.la_reina ? `<span class="status-pill status--blue">${escapeHtml(item.la_reina)}</span>` : ''}
+                        ${item.la_reina_resp ? `<span class="cc-resp-text">${escapeHtml(item.la_reina_resp)}</span>` : ''}
                     </div>
                 </div>` : ''}
                 ${item.externo || item.robinson_resp ? `
                 <div class="cc-response-row">
                     <span class="cc-resp-label" style="color:var(--robinson);">Externo</span>
                     <div class="cc-resp-content">
-                        ${item.externo ? `<span class="status-pill status--green">${item.externo}</span>` : ''}
-                        ${item.robinson_resp ? `<span class="cc-resp-text">${item.robinson_resp}</span>` : ''}
+                        ${item.externo ? `<span class="status-pill status--green">${escapeHtml(item.externo)}</span>` : ''}
+                        ${item.robinson_resp ? `<span class="cc-resp-text">${escapeHtml(item.robinson_resp)}</span>` : ''}
                     </div>
                 </div>` : ''}
-            </div>` : '<p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem;">Sin respuesta aún</p>'}
+            </div>` : `<p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.65rem;"><i class="fas fa-clock" style="opacity:0.4;margin-right:4px;"></i>Sin respuesta aún</p>`}
 
-            ${(function(){
-                const validFotos = (item.fotos || []).map((url, i) => ({url, i})).filter(f => isValidFotoUrl(f.url));
-                if (validFotos.length > 0) {
-                    return `
-                    <div class="cc-fotos-grid" style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.5rem;">
-                        ${validFotos.map((f, arrayIdx) => `
-                            <div class="foto-thumb-wrapper" style="display:flex; align-items:stretch; gap:0.2rem; min-width:130px; flex:1; background:var(--primary-dim); border:1px solid rgba(0,113,227,0.15); border-radius:var(--radius-sm); padding:2px;">
-                                <a href="${f.url}" target="_blank" class="foto-preview-btn" style="margin-bottom:0; flex:1; justify-content:center; background:transparent; border:none; padding:0.4rem;">
-                                    <i class="fas fa-image"></i> Foto ${arrayIdx+1}
-                                </a>
-                                <button class="delete-foto-btn" onclick="deleteFoto(${item.row_index}, ${f.i}, ${idx}, '${(item.folio||'').replace(/'/g,'')}', '${(item.producto||'').replace(/'/g,'').replace(/`/g,'')}')" title="Eliminar foto" style="background:rgba(255,59,48,0.1); border:none; color:var(--danger); border-radius:8px; width:34px; cursor:pointer;">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                        `).join('')}
-                    </div>`;
-                }
-                return '';
-            })()}
+            <!-- ── Fotos ── -->
+            ${validFotos.length > 0 ? `
+            <div class="cc-fotos-grid" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem;">
+                ${validFotos.map((f, arrayIdx) => `
+                    <div class="foto-thumb-wrapper" style="display:flex;align-items:stretch;gap:0.2rem;min-width:130px;flex:1;background:var(--primary-dim);border:1px solid rgba(0,113,227,0.15);border-radius:var(--radius-sm);padding:2px;">
+                        <a href="${f.url}" target="_blank" class="foto-preview-btn" style="margin-bottom:0;flex:1;justify-content:center;background:transparent;border:none;padding:0.4rem;">
+                            <i class="fas fa-image"></i> Foto ${arrayIdx+1}
+                        </a>
+                        <button class="delete-foto-btn" onclick="deleteFoto(${item.row_index},${f.i},${idx},'${(item.folio||'').replace(/'/g,'')}','${(item.producto||'').replace(/'/g,'').replace(/`/g,'')}')" title="Eliminar foto" style="background:rgba(255,59,48,0.1);border:none;color:var(--danger);border-radius:8px;width:34px;cursor:pointer;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>`).join('')}
+            </div>` : ''}
 
-            <div style="display:flex; gap:0.5rem; margin-top:0.75rem;">
-                ${(item.fotos || []).filter(isValidFotoUrl).length < 6 ? `
-                <button class="cc-upload-btn" onclick="triggerFotoUpload(${item.row_index}, ${idx}, '${(item.folio||'').replace(/'/g,'')}', '${(item.producto||'').replace(/'/g,'').replace(/`/g,'')}')" style="flex:1;">
+            <!-- ── Subir foto ── -->
+            <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                ${validFotos.length < 6 ? `
+                <button class="cc-upload-btn" onclick="triggerFotoUpload(${item.row_index},${idx},'${(item.folio||'').replace(/'/g,'')}','${(item.producto||'').replace(/'/g,'').replace(/`/g,'')}')">
                     <i class="fas fa-camera"></i> Subir foto
-                </button>` : `<p style="font-size:0.8rem; color:var(--text-muted); width:100%; text-align:center; padding:0.5rem 0;"><i class="fas fa-info-circle"></i> Límite de 6 fotos alcanzado.</p>`}
+                </button>` : `<p style="font-size:0.8rem;color:var(--text-muted);width:100%;text-align:center;padding:0.5rem 0;"><i class="fas fa-info-circle"></i> Límite de 6 fotos alcanzado.</p>`}
             </div>
             <div id="cc-status-${idx}" class="cc-upload-status"></div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 window.triggerFotoUpload = function(rowIndex, cardIdx, folio, producto) {
