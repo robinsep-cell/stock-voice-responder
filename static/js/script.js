@@ -197,6 +197,7 @@ window.handleRegister = async function() {
 window.logout = function() {
     currentUser = null;
     stockvoice_token = null;
+    window.previewingAsCallcenter = false;
     localStorage.removeItem('stockvoice_user');
     localStorage.removeItem('stockvoice_token');
     localStorage.removeItem('stockvoice_realname');
@@ -209,8 +210,14 @@ window.logout = function() {
     userSelectScreen.style.display = 'flex';
 };
 
+// True while Robinson (admin) is previewing the Call Center screen.
+// Used by the cc-screen back button so he returns to the main app instead
+// of opening the user menu (which is what real callcenter users want).
+window.previewingAsCallcenter = false;
+
 // Menu shown when the user taps the header user icon.
-// Admin (user_key=robinson) gets an extra "Ver usuarios" option.
+// Admin (user_key=robinson) gets two extra options: "Vista Call Center" and
+// "Gestión de usuarios".
 window.changeUser = function() {
     // Remove any previous instance of the menu
     const prev = document.getElementById('user-menu-overlay');
@@ -228,6 +235,9 @@ window.changeUser = function() {
         ${isAdmin ? `
             <button id="menu-users-btn" style="display:block;width:100%;padding:0.85rem;margin-bottom:0.55rem;background:var(--primary);color:#fff;border:none;border-radius:12px;font-size:0.95rem;font-weight:700;cursor:pointer;">
                 <i class="fas fa-users" style="margin-right:6px;"></i>Gestión de usuarios
+            </button>
+            <button id="menu-cc-btn" style="display:block;width:100%;padding:0.85rem;margin-bottom:0.55rem;background:#0057ff;color:#fff;border:none;border-radius:12px;font-size:0.95rem;font-weight:700;cursor:pointer;">
+                <i class="fas fa-headset" style="margin-right:6px;"></i>Vista Call Center
             </button>` : ''}
         <button id="menu-logout-btn" style="display:block;width:100%;padding:0.85rem;margin-bottom:0.55rem;background:var(--danger);color:#fff;border:none;border-radius:12px;font-size:0.95rem;font-weight:700;cursor:pointer;">
             <i class="fas fa-sign-out-alt" style="margin-right:6px;"></i>Cerrar sesión
@@ -242,9 +252,27 @@ window.changeUser = function() {
 
     if (isAdmin) {
         document.getElementById('menu-users-btn').onclick = () => { overlay.remove(); showUsersScreen(); };
+        document.getElementById('menu-cc-btn').onclick = () => {
+            overlay.remove();
+            window.previewingAsCallcenter = true;
+            showCCScreen();
+        };
     }
     document.getElementById('menu-logout-btn').onclick = () => { overlay.remove(); window.logout(); };
     document.getElementById('menu-cancel-btn').onclick = () => overlay.remove();
+};
+
+// Smart back button for the CC screen header. Real callcenter users go to
+// the user menu (only sensible destination). Robinson previewing as
+// callcenter returns to his main respondent view.
+window.ccBack = function() {
+    if (window.previewingAsCallcenter) {
+        window.previewingAsCallcenter = false;
+        document.getElementById('cc-screen').style.display = 'none';
+        mainApp.style.display = 'block';
+    } else {
+        changeUser();
+    }
 };
 
 // =============================================

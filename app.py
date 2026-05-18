@@ -667,7 +667,8 @@ def new_consultation():
     """
     try:
         user_obj = request.user_obj
-        if user_obj.get('user_key') != 'callcenter':
+        # Callcenter normal flow + Robinson (admin) so he can preview/test the screen.
+        if user_obj.get('user_key') not in ('callcenter', 'robinson'):
             return jsonify({'error': 'Solo el call center puede crear consultas nuevas.'}), 403
 
         data = request.json or {}
