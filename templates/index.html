@@ -191,26 +191,18 @@
                        style="width:100%;padding:0.6rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.9rem;box-sizing:border-box;font-family:Inter,sans-serif;" />
             </div>
 
-            <!-- VEHÍCULO: datalist autocomplete + texto libre -->
+            <!-- VEHÍCULO: autocomplete inteligente (marca + modelo + año) -->
             <div style="margin-bottom:0.7rem;">
                 <label style="display:block;font-size:0.78rem;font-weight:700;color:#333;margin-bottom:4px;">Vehículo *</label>
-                <input id="nc-vehiculo" type="text" list="nc-marcas-list"
-                       placeholder="Marca, modelo y año (ej: Toyota Yaris 2018)"
-                       style="width:100%;padding:0.7rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.95rem;box-sizing:border-box;font-family:Inter,sans-serif;" />
-                <datalist id="nc-marcas-list">
-                    <option value="Toyota"><option value="Chevrolet"><option value="Hyundai">
-                    <option value="Kia"><option value="Mazda"><option value="Nissan">
-                    <option value="Ford"><option value="Volkswagen"><option value="Renault">
-                    <option value="Peugeot"><option value="Citroën"><option value="Honda">
-                    <option value="Mitsubishi"><option value="Suzuki"><option value="Subaru">
-                    <option value="Jeep"><option value="Dodge"><option value="RAM">
-                    <option value="Mercedes-Benz"><option value="BMW"><option value="Audi">
-                    <option value="Volvo"><option value="Chery"><option value="MG">
-                    <option value="BYD"><option value="Great Wall"><option value="JAC">
-                    <option value="Geely"><option value="Fiat"><option value="SEAT">
-                    <option value="Skoda"><option value="Isuzu"><option value="Hino">
-                    <option value="Ssangyong"><option value="Haval"><option value="Zotye">
-                </datalist>
+                <div style="position:relative;">
+                    <input id="nc-vehiculo" type="text" autocomplete="off"
+                           placeholder="Ej: Berlingo, Yaris, Ranger, Hilux..."
+                           oninput="ncVehiculoInput(this.value)"
+                           onblur="setTimeout(ncVehiculoClose,200)"
+                           style="width:100%;padding:0.7rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.95rem;box-sizing:border-box;font-family:Inter,sans-serif;" />
+                    <div id="nc-vehiculo-dropdown"
+                         style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid #0057ff33;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,0.14);z-index:9999;max-height:240px;overflow-y:auto;"></div>
+                </div>
             </div>
 
             <!-- LADO: chips + texto libre -->

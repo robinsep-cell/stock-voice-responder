@@ -748,6 +748,164 @@ function showCCScreen() {
 }
 
 // =============================================
+// VEHICLE AUTOCOMPLETE DATA
+// Each entry: [marca, modelo, añoInicio, añoFin]
+// =============================================
+const NC_VEHICULOS_DB = [
+    ['Toyota','Corolla',2000,2024],['Toyota','Yaris',2005,2024],
+    ['Toyota','Hilux',2005,2024],['Toyota','RAV4',2006,2024],
+    ['Toyota','Fortuner',2012,2024],['Toyota','Land Cruiser Prado',2010,2024],
+    ['Toyota','Land Cruiser 200',2008,2022],['Toyota','Rush',2018,2024],
+    ['Toyota','Hiace',2005,2024],['Toyota','Prius',2010,2024],
+    ['Toyota','Camry',2010,2024],['Toyota','Etios',2013,2020],
+    ['Toyota','Avanza',2012,2022],['Toyota','Innova',2010,2024],
+    ['Hyundai','Tucson',2010,2024],['Hyundai','Santa Fe',2010,2024],
+    ['Hyundai','Accent',2010,2024],['Hyundai','i10',2010,2020],
+    ['Hyundai','i20',2012,2024],['Hyundai','Elantra',2010,2024],
+    ['Hyundai','H1',2010,2024],['Hyundai','Creta',2016,2024],
+    ['Hyundai','Ioniq',2017,2024],['Hyundai','Kona',2018,2024],
+    ['Hyundai','Staria',2021,2024],
+    ['Kia','Sportage',2010,2024],['Kia','Sorento',2010,2024],
+    ['Kia','Rio',2010,2024],['Kia','Cerato',2010,2024],
+    ['Kia','Picanto',2010,2024],['Kia','Stonic',2018,2024],
+    ['Kia','Seltos',2020,2024],['Kia','Carnival',2015,2024],
+    ['Kia','EV6',2022,2024],
+    ['Chevrolet','Spark',2010,2024],['Chevrolet','Sail',2012,2022],
+    ['Chevrolet','Cruze',2010,2022],['Chevrolet','Tracker',2014,2024],
+    ['Chevrolet','Trax',2014,2022],['Chevrolet','Captiva',2010,2018],
+    ['Chevrolet','S10',2014,2024],['Chevrolet','Colorado',2015,2024],
+    ['Chevrolet','Onix',2020,2024],['Chevrolet','Blazer',2019,2024],
+    ['Nissan','Frontier',2008,2024],['Nissan','Navara',2008,2022],
+    ['Nissan','X-Trail',2008,2024],['Nissan','Qashqai',2012,2024],
+    ['Nissan','Kicks',2017,2024],['Nissan','Sentra',2010,2024],
+    ['Nissan','Tiida',2007,2018],['Nissan','March',2012,2020],
+    ['Nissan','Note',2013,2020],['Nissan','Pathfinder',2010,2024],
+    ['Nissan','Murano',2010,2022],['Nissan','NP300',2008,2020],
+    ['Nissan','Leaf',2018,2024],
+    ['Mazda','2',2010,2024],['Mazda','3',2010,2024],['Mazda','6',2010,2023],
+    ['Mazda','CX-3',2015,2024],['Mazda','CX-5',2013,2024],
+    ['Mazda','CX-9',2013,2024],['Mazda','CX-30',2020,2024],
+    ['Mazda','BT-50',2008,2024],
+    ['Ford','Ranger',2008,2024],['Ford','F-150',2010,2024],
+    ['Ford','Explorer',2010,2024],['Ford','Escape',2010,2024],
+    ['Ford','Focus',2010,2018],['Ford','Fiesta',2010,2018],
+    ['Ford','EcoSport',2012,2022],['Ford','Mustang',2015,2024],
+    ['Ford','Bronco',2021,2024],['Ford','Territory',2021,2024],
+    ['Volkswagen','Gol',2010,2022],['Volkswagen','Polo',2012,2024],
+    ['Volkswagen','Golf',2010,2024],['Volkswagen','Jetta',2010,2024],
+    ['Volkswagen','Passat',2010,2022],['Volkswagen','Tiguan',2012,2024],
+    ['Volkswagen','Amarok',2012,2024],['Volkswagen','T-Roc',2020,2024],
+    ['Volkswagen','Touareg',2010,2024],
+    ['Renault','Duster',2012,2024],['Renault','Captur',2014,2024],
+    ['Renault','Sandero',2010,2024],['Renault','Logan',2010,2022],
+    ['Renault','Clio',2010,2024],['Renault','Kwid',2018,2024],
+    ['Renault','Koleos',2012,2024],['Renault','Oroch',2016,2024],
+    ['Renault','Kangoo',2010,2024],
+    ['Peugeot','208',2013,2024],['Peugeot','308',2010,2022],
+    ['Peugeot','508',2012,2022],['Peugeot','2008',2014,2024],
+    ['Peugeot','3008',2012,2024],['Peugeot','5008',2018,2024],
+    ['Peugeot','Partner',2010,2022],['Peugeot','Expert',2010,2022],
+    ['Citroën','C3',2010,2024],['Citroën','C4',2010,2024],
+    ['Citroën','C4 Cactus',2015,2022],['Citroën','Berlingo',2010,2024],
+    ['Citroën','Jumpy',2010,2024],['Citroën','Jumper',2010,2024],
+    ['Citroën','C-Elysée',2013,2022],['Citroën','C5 Aircross',2019,2024],
+    ['Honda','Civic',2010,2024],['Honda','CR-V',2010,2024],
+    ['Honda','HR-V',2015,2024],['Honda','Jazz',2010,2020],
+    ['Honda','Fit',2010,2020],['Honda','Pilot',2010,2022],
+    ['Honda','Accord',2010,2022],['Honda','City',2014,2024],
+    ['Honda','WR-V',2023,2024],
+    ['Mitsubishi','L200',2010,2024],['Mitsubishi','Outlander',2010,2024],
+    ['Mitsubishi','Eclipse Cross',2018,2024],['Mitsubishi','ASX',2012,2024],
+    ['Mitsubishi','Montero Sport',2010,2022],['Mitsubishi','Galant',2010,2016],
+    ['Suzuki','Swift',2010,2024],['Suzuki','Vitara',2015,2024],
+    ['Suzuki','S-Cross',2015,2024],['Suzuki','Jimny',2012,2024],
+    ['Suzuki','Grand Vitara',2010,2018],['Suzuki','Alto',2010,2022],
+    ['Suzuki','Baleno',2017,2024],
+    ['Subaru','Forester',2010,2024],['Subaru','Outback',2010,2024],
+    ['Subaru','XV',2012,2024],['Subaru','Impreza',2010,2024],
+    ['Subaru','Legacy',2010,2022],['Subaru','BRZ',2013,2024],
+    ['Jeep','Wrangler',2010,2024],['Jeep','Cherokee',2014,2024],
+    ['Jeep','Grand Cherokee',2011,2024],['Jeep','Compass',2018,2024],
+    ['Jeep','Renegade',2016,2024],
+    ['Mercedes-Benz','Clase A',2013,2024],['Mercedes-Benz','Clase C',2010,2024],
+    ['Mercedes-Benz','Clase E',2010,2024],['Mercedes-Benz','GLA',2014,2024],
+    ['Mercedes-Benz','GLC',2016,2024],['Mercedes-Benz','GLE',2016,2024],
+    ['Mercedes-Benz','Sprinter',2010,2024],['Mercedes-Benz','Vito',2010,2024],
+    ['BMW','Serie 1',2010,2024],['BMW','Serie 3',2010,2024],
+    ['BMW','Serie 5',2010,2024],['BMW','X1',2012,2024],
+    ['BMW','X3',2012,2024],['BMW','X5',2010,2024],['BMW','X6',2010,2024],
+    ['Audi','A3',2012,2024],['Audi','A4',2010,2024],['Audi','A6',2010,2024],
+    ['Audi','Q3',2013,2024],['Audi','Q5',2010,2024],['Audi','Q7',2010,2024],
+    ['Fiat','500',2012,2022],['Fiat','Palio',2010,2018],
+    ['Fiat','Punto',2010,2018],['Fiat','Uno',2010,2022],
+    ['Fiat','Strada',2012,2024],['Fiat','Ducato',2010,2024],
+    ['Fiat','Doblò',2012,2024],
+    ['Ssangyong','Tivoli',2016,2024],['Ssangyong','Korando',2012,2022],
+    ['Ssangyong','Rexton',2010,2022],['Ssangyong','Musso',2020,2024],
+    ['Ssangyong','Actyon',2010,2018],
+    ['Chery','QQ',2010,2020],['Chery','Tiggo 2',2017,2024],
+    ['Chery','Tiggo 4',2018,2024],['Chery','Tiggo 5',2016,2022],
+    ['Chery','Tiggo 7',2019,2024],['Chery','Tiggo 8',2020,2024],
+    ['Chery','Arrizo 5',2017,2024],['Chery','Arrizo 6',2019,2024],
+    ['MG','ZS',2019,2024],['MG','HS',2020,2024],
+    ['MG','5',2021,2024],['MG','6',2020,2024],['MG','4',2023,2024],
+    ['BYD','Atto 3',2022,2024],['BYD','Dolphin',2023,2024],
+    ['BYD','Seal',2023,2024],['BYD','Han',2022,2024],['BYD','Tang',2022,2024],
+    ['Haval','H6',2018,2024],['Haval','H2',2016,2022],
+    ['Haval','Jolion',2021,2024],['Haval','H9',2019,2024],
+    ['JAC','S4',2018,2024],['JAC','T6',2018,2024],['JAC','T8',2020,2024],
+    ['Volvo','XC40',2018,2024],['Volvo','XC60',2010,2024],
+    ['Volvo','XC90',2010,2024],['Volvo','S60',2011,2024],
+    ['Land Rover','Defender',2020,2024],['Land Rover','Discovery',2010,2024],
+    ['Land Rover','Range Rover',2010,2024],['Land Rover','Freelander',2010,2018],
+    ['Land Rover','Discovery Sport',2015,2024],
+    ['Dodge','Journey',2010,2022],['Dodge','Charger',2010,2024],
+    ['Dodge','Durango',2012,2024],
+    ['RAM','700',2015,2022],['RAM','1500',2019,2024],
+    ['Isuzu','D-Max',2008,2024],['Isuzu','MU-X',2014,2024],
+    ['Hino','300',2010,2024],['Hino','500',2010,2024],
+    ['Geely','Emgrand',2018,2024],['Geely','Coolray',2020,2024],
+    ['SEAT','Ibiza',2012,2022],['SEAT','León',2012,2022],['SEAT','Ateca',2017,2022],
+    ['Skoda','Octavia',2013,2024],['Skoda','Fabia',2010,2022],['Skoda','Karoq',2019,2024],
+];
+
+// Build a flat lookup string per entry for fast search
+const NC_VEHICULOS_INDEX = NC_VEHICULOS_DB.map(([marca, modelo, y1, y2]) => ({
+    marca, modelo, y1, y2,
+    search: `${marca} ${modelo}`.toLowerCase(),
+}));
+
+function ncVehiculoInput(val) {
+    const q = val.trim().toLowerCase();
+    const dd = document.getElementById('nc-vehiculo-dropdown');
+    if (!dd) return;
+    if (q.length < 2) { dd.style.display = 'none'; return; }
+
+    const matches = NC_VEHICULOS_INDEX.filter(v => v.search.includes(q)).slice(0, 10);
+    if (!matches.length) { dd.style.display = 'none'; return; }
+
+    dd.innerHTML = matches.map(v => `
+        <div onclick="ncVehiculoSelect('${(v.marca+' '+v.modelo).replace(/'/g,"\\'")} ')"
+             style="padding:0.65rem 1rem;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;gap:8px;"
+             onmouseenter="this.style.background='#f0f6ff'" onmouseleave="this.style.background=''">>
+            <span style="font-weight:700;font-size:0.9rem;color:#1d1d1f;">${v.marca} <span style="color:#0057ff;">${v.modelo}</span></span>
+            <span style="font-size:0.75rem;color:#999;white-space:nowrap;">${v.y1}–${v.y2}</span>
+        </div>`).join('');
+    dd.style.display = 'block';
+}
+
+window.ncVehiculoSelect = function(val) {
+    const inp = document.getElementById('nc-vehiculo');
+    if (inp) { inp.value = val; inp.focus(); }
+    ncVehiculoClose();
+};
+
+function ncVehiculoClose() {
+    const dd = document.getElementById('nc-vehiculo-dropdown');
+    if (dd) dd.style.display = 'none';
+}
+
+// =============================================
 // NEW CONSULTATION FORM (callcenter) — chips
 // =============================================
 const NC_PRODUCTOS = [
@@ -805,6 +963,9 @@ window.openNewConsultationForm = function() {
     ncSelectedLados.clear();
     ncRenderChips('nc-producto-chips', NC_PRODUCTOS, ncSelectedProductos, 'producto');
     ncRenderChips('nc-lado-chips',     NC_LADOS,     ncSelectedLados,     'lado');
+
+    // Close vehicle dropdown in case it was open
+    ncVehiculoClose();
 
     // Reset text inputs
     ['nc-vehiculo','nc-producto-otro','nc-lado-otro','nc-caracteristicas',
