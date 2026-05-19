@@ -249,6 +249,75 @@
         </div>
     </div>
 
+    <!-- ===== EDIT CONSULTATION MODAL (callcenter) ===== -->
+    <div id="edit-consultation-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;overflow-y:auto;padding:1rem;">
+        <div style="background:#fff;border-radius:16px;max-width:480px;width:100%;margin:0.5rem auto;padding:1.25rem;box-shadow:0 20px 50px rgba(0,0,0,0.35);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                <h2 style="margin:0;font-size:1.1rem;font-weight:800;color:#1a1a1a;">
+                    <i class="fas fa-pen" style="color:var(--callcenter,#ff9500);margin-right:6px;"></i>Editar consulta
+                    <span id="ec-folio-label" style="font-size:0.85rem;font-weight:500;color:#888;margin-left:6px;"></span>
+                </h2>
+                <button onclick="closeEditConsultation()" style="background:transparent;border:none;font-size:1.4rem;color:#888;cursor:pointer;line-height:1;">×</button>
+            </div>
+
+            <div style="margin-bottom:0.65rem;">
+                <label style="display:block;font-size:0.78rem;font-weight:700;color:#333;margin-bottom:4px;">Producto *</label>
+                <input id="ec-producto" type="text" placeholder="Ej: Parabrisas, Espejo lateral..."
+                       style="width:100%;padding:0.7rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.95rem;box-sizing:border-box;font-family:Inter,sans-serif;" />
+            </div>
+
+            <div style="margin-bottom:0.65rem;">
+                <label style="display:block;font-size:0.78rem;font-weight:700;color:#333;margin-bottom:4px;">Vehículo *</label>
+                <div style="position:relative;">
+                    <input id="ec-vehiculo" type="text" autocomplete="off"
+                           placeholder="Ej: Toyota Yaris 2018"
+                           oninput="ecVehiculoInput(this.value)"
+                           onblur="setTimeout(ecVehiculoClose,200)"
+                           style="width:100%;padding:0.7rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.95rem;box-sizing:border-box;font-family:Inter,sans-serif;" />
+                    <div id="ec-vehiculo-dropdown"
+                         style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid #ff950033;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,0.14);z-index:9999;max-height:220px;overflow-y:auto;"></div>
+                </div>
+            </div>
+
+            <div style="margin-bottom:0.65rem;">
+                <label style="display:block;font-size:0.78rem;font-weight:700;color:#333;margin-bottom:4px;">Lado *</label>
+                <input id="ec-lado" type="text" placeholder="Izquierdo / Derecho / Trasero / Ambos..."
+                       style="width:100%;padding:0.7rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.95rem;box-sizing:border-box;font-family:Inter,sans-serif;" />
+            </div>
+
+            <div style="margin-bottom:0.9rem;">
+                <label style="display:block;font-size:0.78rem;font-weight:700;color:#333;margin-bottom:4px;">Características <span style="color:#999;font-weight:500;">(opcional)</span></label>
+                <textarea id="ec-caracteristicas" rows="2" placeholder="Detalles adicionales..."
+                          style="width:100%;padding:0.7rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.95rem;box-sizing:border-box;font-family:Inter,sans-serif;resize:vertical;"></textarea>
+            </div>
+
+            <div style="border-top:1px solid #eee;padding-top:0.8rem;margin-bottom:0.9rem;">
+                <p style="font-size:0.8rem;font-weight:700;color:#1a1a1a;margin:0 0 0.55rem 0;">
+                    <i class="fas fa-user" style="margin-right:4px;color:var(--callcenter,#ff9500);"></i>Cliente <span style="color:#999;font-weight:500;font-size:0.72rem;">(todo opcional)</span>
+                </p>
+                <input id="ec-cli-nombre" type="text" placeholder="Nombre del cliente"
+                       style="width:100%;padding:0.6rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.92rem;box-sizing:border-box;margin-bottom:0.4rem;font-family:Inter,sans-serif;" />
+                <input id="ec-cli-tel" type="tel" placeholder="Teléfono / WhatsApp"
+                       style="width:100%;padding:0.6rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.92rem;box-sizing:border-box;margin-bottom:0.4rem;font-family:Inter,sans-serif;" />
+                <input id="ec-cli-email" type="email" placeholder="Email"
+                       style="width:100%;padding:0.6rem 0.9rem;border:1px solid #ddd;border-radius:10px;font-size:0.92rem;box-sizing:border-box;font-family:Inter,sans-serif;" />
+            </div>
+
+            <div id="ec-status" style="font-size:0.85rem;text-align:center;min-height:1.2rem;margin-bottom:0.6rem;"></div>
+
+            <div style="display:flex;gap:0.5rem;">
+                <button onclick="closeEditConsultation()"
+                        style="flex:1;padding:0.85rem;background:transparent;color:#666;border:1px solid #ddd;border-radius:12px;font-size:0.95rem;cursor:pointer;font-family:Inter,sans-serif;">
+                    Cancelar
+                </button>
+                <button id="ec-submit" onclick="submitEditConsultation()"
+                        style="flex:1.4;padding:0.85rem;background:var(--callcenter,#ff9500);color:#fff;border:none;border-radius:12px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;">
+                    <i class="fas fa-save"></i> Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- hidden file input: no capture attr so user can choose camera OR gallery -->
     <input type="file" id="foto-input" accept="image/*" style="display:none;" onchange="handleFotoSelected(event)" />
 

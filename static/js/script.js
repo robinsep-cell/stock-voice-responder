@@ -1046,6 +1046,122 @@ window.submitNewConsultation = async function() {
     }
 };
 
+// =============================================
+// EDIT CONSULTATION (callcenter)
+// =============================================
+let ecCurrentRowIndex = null;
+let ecCurrentCardIdx  = null;
+let ecCurrentSearch   = '';
+
+// Autocomplete para el campo vehículo del modal de edición (reutiliza la misma DB)
+function ecVehiculoInput(val) {
+    const q  = val.trim().toLowerCase();
+    const dd = document.getElementById('ec-vehiculo-dropdown');
+    if (!dd) return;
+    if (q.length < 2) { dd.style.display = 'none'; return; }
+    const matches = NC_VEHICULOS_INDEX.filter(v => v.search.includes(q)).slice(0, 10);
+    if (!matches.length) { dd.style.display = 'none'; return; }
+    dd.innerHTML = matches.map(v => `
+        <div onclick="ecVehiculoSelect('${(v.marca+' '+v.modelo).replace(/'/g,"\\'")} ')"
+             style="padding:0.65rem 1rem;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;gap:8px;"
+             onmouseenter="this.style.background='#fff8f0'" onmouseleave="this.style.background=''">
+            <span style="font-weight:700;font-size:0.9rem;color:#1d1d1f;">${v.marca} <span style="color:var(--callcenter,#ff9500);">${v.modelo}</span></span>
+            <span style="font-size:0.75rem;color:#999;white-space:nowrap;">${v.y1}–${v.y2}</span>
+        </div>`).join('');
+    dd.style.display = 'block';
+}
+window.ecVehiculoSelect = function(val) {
+    const inp = document.getElementById('ec-vehiculo');
+    if (inp) { inp.value = val; inp.focus(); }
+    ecVehiculoClose();
+};
+function ecVehiculoClose() {
+    const dd = document.getElementById('ec-vehiculo-dropdown');
+    if (dd) dd.style.display = 'none';
+}
+
+window.openEditConsultation = function(item, cardIdx, currentSearch) {
+    ecCurrentRowIndex = item.row_index;
+    ecCurrentCardIdx  = cardIdx;
+    ecCurrentSearch   = currentSearch || '';
+
+    // Pre-fill fields
+    document.getElementById('ec-folio-label').textContent = item.folio ? `— Folio ${item.folio}` : '';
+    document.getElementById('ec-producto').value       = item.producto          || '';
+    document.getElementById('ec-vehiculo').value       = item.marca_modelo_año  || '';
+    document.getElementById('ec-lado').value           = item.lado              || '';
+    document.getElementById('ec-caracteristicas').value= item.caracteristicas   || '';
+    document.getElementById('ec-cli-nombre').value     = item.cliente_nombre    || '';
+    document.getElementById('ec-cli-tel').value        = item.cliente_telefono  || '';
+    document.getElementById('ec-cli-email').value      = item.cliente_email     || '';
+
+    const st = document.getElementById('ec-status');
+    st.textContent = ''; st.style.color = '';
+    const btn = document.getElementById('ec-submit');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save"></i> Guardar';
+
+    ecVehiculoClose();
+    document.getElementById('edit-consultation-modal').style.display = 'block';
+    setTimeout(() => document.getElementById('ec-producto')?.focus(), 60);
+};
+
+window.closeEditConsultation = function() {
+    document.getElementById('edit-consultation-modal').style.display = 'none';
+    ecVehiculoClose();
+};
+
+window.submitEditConsultation = async function() {
+    const producto    = (document.getElementById('ec-producto')?.value || '').trim();
+    const vehiculo    = (document.getElementById('ec-vehiculo')?.value || '').trim();
+    const lado        = (document.getElementById('ec-lado')?.value    || '').trim();
+    const caract      = (document.getElementById('ec-caracteristicas')?.value || '').trim();
+    const cli_nombre  = (document.getElementById('ec-cli-nombre')?.value || '').trim();
+    const cli_tel     = (document.getElementById('ec-cli-tel')?.value   || '').trim();
+    const cli_email   = (document.getElementById('ec-cli-email')?.value || '').trim();
+
+    const st  = document.getElementById('ec-status');
+    const btn = document.getElementById('ec-submit');
+    st.style.color = 'var(--danger,#dc2626)';
+    if (!producto) { st.textContent = 'Falta el producto';  return; }
+    if (!vehiculo) { st.textContent = 'Falta el vehículo';  return; }
+    if (!lado)     { st.textContent = 'Falta el lado';      return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<div class="loader" style="width:16px;height:16px;border-width:2px;display:inline-block;"></div> Guardando...';
+    st.style.color = ''; st.textContent = '';
+
+    try {
+        const res = await fetch('/api/update-consultation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                row_index: ecCurrentRowIndex,
+                producto, vehiculo, lado,
+                caracteristicas: caract,
+                cliente_nombre:   cli_nombre,
+                cliente_telefono: cli_tel,
+                cliente_email:    cli_email,
+            }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        st.style.color = 'var(--success,#16a34a)';
+        st.textContent = '✅ Guardado';
+        setTimeout(() => {
+            closeEditConsultation();
+            // Re-run current search to refresh cards
+            if (ecCurrentSearch.length >= 2) searchConsultations(ecCurrentSearch);
+        }, 500);
+    } catch(err) {
+        st.style.color = 'var(--danger,#dc2626)';
+        st.textContent = `Error: ${err.message}`;
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save"></i> Guardar';
+    }
+};
+
 async function fetchRecentFolios() {
     try {
         const res  = await fetch('/api/recent-folios');
@@ -1110,7 +1226,10 @@ window.debouncedSearch = function(val) {
     ccSearchTimer = setTimeout(() => searchConsultations(val), 500);
 };
 
+let lastCCQuery = '';
+
 async function searchConsultations(q) {
+    lastCCQuery = q;
     ccResults.innerHTML = `<div style="text-align:center;padding:1.5rem;">
         <div class="loader" style="display:inline-block;"></div></div>`;
     try {
@@ -1123,7 +1242,16 @@ async function searchConsultations(q) {
     }
 }
 
+let ccLastItems = []; // keeps the last search result for edit lookups
+
+window.ccEditCard = function(idx) {
+    const item = ccLastItems[idx];
+    if (!item) return;
+    openEditConsultation(item, idx, lastCCQuery);
+};
+
 function renderCCResults(items) {
+    ccLastItems = items;   // save for edit
     if (items.length === 0) {
         ccResults.innerHTML = `<div class="empty-state"><i class="fas fa-search"></i>
             <h2>Sin resultados</h2><p>Intenta con otro término.</p></div>`;
@@ -1215,8 +1343,12 @@ function renderCCResults(items) {
                     </div>`).join('')}
             </div>` : ''}
 
-            <!-- ── Subir foto ── -->
+            <!-- ── Acciones: Editar + Subir foto ── -->
             <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                <button class="cc-edit-btn" onclick="ccEditCard(${idx})"
+                        style="display:flex;align-items:center;justify-content:center;gap:0.4rem;padding:0.6rem 0.9rem;background:#fff7ed;border:1px solid rgba(255,149,0,0.4);color:var(--callcenter,#ff9500);border-radius:var(--radius-sm);font-size:0.85rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;white-space:nowrap;">
+                    <i class="fas fa-pen"></i> Editar
+                </button>
                 ${validFotos.length < 6 ? `
                 <button class="cc-upload-btn" onclick="triggerFotoUpload(${item.row_index},${idx},'${(item.folio||'').replace(/'/g,'')}','${(item.producto||'').replace(/'/g,'').replace(/`/g,'')}')">
                     <i class="fas fa-camera"></i> Subir foto

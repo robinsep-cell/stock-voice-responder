@@ -470,6 +470,54 @@ def consultations():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/update-consultation', methods=['POST'])
+@require_auth
+def update_consultation():
+    """Callcenter (or admin) can edit the main fields of an existing consultation."""
+    try:
+        user = get_user_from_token(request.headers.get('Authorization','').replace('Bearer ','').strip())
+        if user.get('user_key') not in ('callcenter', 'robinson'):
+            return jsonify({'error': 'Sin permiso'}), 403
+
+        data      = request.json
+        row_idx   = int(data.get('row_index', 0))
+        if row_idx < 2:
+            return jsonify({'error': 'row_index inválido'}), 400
+
+        producto  = data.get('producto',         '').strip()
+        vehiculo  = data.get('vehiculo',          '').strip()
+        lado      = data.get('lado',              '').strip()
+        caract    = data.get('caracteristicas',   '').strip()
+        cli_nombre= data.get('cliente_nombre',    '').strip()
+        cli_tel   = data.get('cliente_telefono',  '').strip()
+        cli_email = data.get('cliente_email',     '').strip()
+
+        if not producto or not vehiculo or not lado:
+            return jsonify({'error': 'Producto, vehículo y lado son obligatorios'}), 400
+
+        client = get_gspread_client()
+        sheet  = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+
+        # Batch-update only the editable columns
+        updates = [
+            (row_idx, COL_PRODUCTO,         producto),
+            (row_idx, COL_CARACT,           caract),
+            (row_idx, COL_LADO,             lado),
+            (row_idx, COL_VEHICULO,         vehiculo),
+            (row_idx, COL_CLIENTE_NOMBRE,   cli_nombre),
+            (row_idx, COL_CLIENTE_TELEFONO, cli_tel),
+            (row_idx, COL_CLIENTE_EMAIL,    cli_email),
+        ]
+        for r, c, v in updates:
+            sheet.update_cell(r, c, v)
+
+        print(f"[CC-EDIT] row={row_idx} folio actualizado", flush=True)
+        return jsonify({'ok': True})
+    except Exception as e:
+        print(traceback.format_exc(), flush=True)
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/update-foto', methods=['POST'])
 @require_auth
 def update_foto():
